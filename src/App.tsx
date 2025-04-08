@@ -10,6 +10,7 @@ import PlaylistsPage from "./pages/PlaylistsPage";
 import PlaylistDetailPage from "./pages/PlaylistDetailPage";
 import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
+import CallbackPage from "./pages/CallbackPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/callback" element={<CallbackPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

@@ -1,49 +1,67 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist, SpotifyTrackDetail } from '@/types';
 import { getPlaylist, getTracksWithFeatures } from '@/lib/spotify';
 import TrackItem from '@/components/TrackItem';
-import { mockTracks } from '@/data/mockData';
+import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
+import { useQuery } from '@tanstack/react-query';
+import { toast } from '@/components/ui/use-toast';
+import { formatDuration } from '@/lib/utils';
 
 const PlaylistDetailPage = () => {
   const { id } = useParams<{ id: string }>();
-  const [playlist, setPlaylist] = useState<SpotifyPlaylist | null>(null);
-  const [tracks, setTracks] = useState<SpotifyTrackDetail[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { token, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
   const [comment, setComment] = useState('');
+  const [tracks, setTracks] = useState<SpotifyTrackDetail[]>([]);
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const fetchPlaylistDetails = async () => {
-      if (!id) return;
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, authLoading, navigate]);
+
+  // Fetch playlist details using React Query
+  const { data: playlist, isLoading: playlistLoading, error: playlistError } = useQuery({
+    queryKey: ['playlist', token, id],
+    queryFn: () => {
+      if (!token || !id) return Promise.resolve(null);
+      return getPlaylist(token, id);
+    },
+    enabled: !!token && !!id,
+    onError: (err) => {
+      console.error('Error fetching playlist details:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to load playlist details. Please try again later.',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Extract track IDs and fetch track details with audio features
+  useEffect(() => {
+    const fetchTracksWithFeatures = async () => {
+      if (!token || !playlist || !playlist.tracks.items.length) return;
       
       try {
-        setIsLoading(true);
-        // In a real app, you'd get the token from state or local storage
-        const token = localStorage.getItem('spotify_token') || 'mock-token';
-        
-        const playlistData = await getPlaylist(token, id);
-        if (!playlistData) {
-          setError('Playlist not found');
-          return;
-        }
-        
-        setPlaylist(playlistData);
-        
-        // For demo purposes, we'll use the mock tracks
-        setTracks(mockTracks);
-        
+        const trackIds = playlist.tracks.items.map(item => item.track.id);
+        const tracksData = await getTracksWithFeatures(token, trackIds);
+        setTracks(tracksData);
       } catch (err) {
-        console.error('Error fetching playlist details:', err);
-        setError('Failed to load playlist details. Please try again later.');
-      } finally {
-        setIsLoading(false);
+        console.error('Error fetching tracks with features:', err);
+        toast({
+          title: 'Error',
+          description: 'Failed to load track details. Please try again later.',
+          variant: 'destructive'
+        });
       }
     };
 
-    fetchPlaylistDetails();
-  }, [id]);
+    fetchTracksWithFeatures();
+  }, [token, playlist]);
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +70,10 @@ const PlaylistDetailPage = () => {
     setComment('');
   };
 
-  if (isLoading) {
+  // Calculate total duration
+  const totalDuration = tracks.reduce((acc, track) => acc + track.duration_ms, 0);
+
+  if (authLoading || playlistLoading) {
     return (
       <div className="flex justify-center p-12">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
@@ -60,10 +81,12 @@ const PlaylistDetailPage = () => {
     );
   }
 
-  if (error || !playlist) {
+  if (playlistError || !playlist) {
     return (
       <div className="container px-4 py-8">
-        <div className="rounded-md bg-red-50 p-4 text-red-800">{error || 'Playlist not found'}</div>
+        <div className="rounded-md bg-red-50 p-4 text-red-800">
+          {playlistError ? 'Failed to load playlist details. Please try again later.' : 'Playlist not found'}
+        </div>
       </div>
     );
   }
@@ -72,9 +95,17 @@ const PlaylistDetailPage = () => {
     <div className="container px-4 py-8">
       <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
         <div className="md:col-span-2">
-          {tracks.map((track) => (
-            <TrackItem key={track.id} track={track} />
-          ))}
+          {tracks.length > 0 ? (
+            tracks.map((track) => (
+              <TrackItem key={track.id} track={track} />
+            ))
+          ) : (
+            <div className="rounded-md border p-8 text-center">
+              <p className="text-muted-foreground">
+                No tracks found in this playlist.
+              </p>
+            </div>
+          )}
           
           <div className="mt-6 grid grid-cols-2 gap-4">
             <button className="rounded-md bg-light-green px-4 py-2 font-medium text-gray-800 hover:bg-opacity-90">
@@ -100,13 +131,11 @@ const PlaylistDetailPage = () => {
               <h1 className="text-2xl font-bold">{playlist.name}</h1>
               <p className="text-muted-foreground">{playlist.owner.display_name}</p>
               <p className="text-muted-foreground">
-                Last updated {new Date().toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
+                {playlist.tracks.total} tracks
               </p>
-              <p className="text-muted-foreground">Duration: unknown</p>
+              <p className="text-muted-foreground">
+                Duration: {formatDuration(totalDuration)}
+              </p>
             </div>
             
             <form onSubmit={handleAddComment} className="mt-4">

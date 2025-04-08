@@ -1,32 +1,66 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { searchSpotify } from '@/lib/spotify';
 import { SpotifyTrackDetail } from '@/types';
 import TrackItem from '@/components/TrackItem';
 import { Search, X } from 'lucide-react';
-import { mockTracks } from '@/data/mockData';
+import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
+import { toast } from '@/components/ui/use-toast';
 
 const LibraryPage = () => {
+  const navigate = useNavigate();
+  const { token, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SpotifyTrackDetail[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, authLoading, navigate]);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!searchTerm.trim()) return;
+    if (!searchTerm.trim() || !token) return;
     
     try {
       setIsSearching(true);
-      // In a real app, you'd get the token from state or local storage
-      const token = localStorage.getItem('spotify_token') || 'mock-token';
+      const results = await searchSpotify(token, searchTerm);
       
-      // For demo, we'll just use mock data
-      setSearchResults(mockTracks);
-      
+      if (results && results.tracks && results.tracks.items) {
+        // Convert to our SpotifyTrackDetail format
+        const trackDetails: SpotifyTrackDetail[] = results.tracks.items.map((track: any) => ({
+          id: track.id,
+          name: track.name,
+          duration_ms: track.duration_ms,
+          album: {
+            id: track.album.id,
+            name: track.album.name,
+            images: track.album.images,
+            release_date: track.album.release_date
+          },
+          artists: track.artists.map((artist: any) => ({
+            id: artist.id,
+            name: artist.name
+          }))
+        }));
+        
+        setSearchResults(trackDetails);
+      } else {
+        setSearchResults([]);
+      }
     } catch (error) {
       console.error('Error searching:', error);
+      toast({
+        title: 'Search Error',
+        description: 'Failed to search Spotify. Please try again later.',
+        variant: 'destructive'
+      });
     } finally {
       setIsSearching(false);
       setShowSearchModal(false);
@@ -37,6 +71,14 @@ const LibraryPage = () => {
     setSearchTerm('');
     setSearchResults([]);
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center p-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="container px-4 py-8">
@@ -56,7 +98,7 @@ const LibraryPage = () => {
             <div className="fixed inset-0 z-50 flex items-start justify-center pt-32 bg-black bg-opacity-50">
               <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg">
                 <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">Search</h2>
+                  <h2 className="text-xl font-semibold">Search Spotify</h2>
                   <button 
                     onClick={() => setShowSearchModal(false)}
                     className="rounded-full p-1 hover:bg-gray-100"
@@ -71,7 +113,7 @@ const LibraryPage = () => {
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="SEARCH TERM HERE"
+                      placeholder="Search for songs, artists, or albums"
                       className="w-full rounded-md border p-3 pr-10"
                       autoFocus
                     />
@@ -113,9 +155,9 @@ const LibraryPage = () => {
         </div>
       ) : (
         <div className="rounded-md border p-8 text-center">
-          <p className="mb-4 text-lg font-medium">Your library is empty</p>
+          <p className="mb-4 text-lg font-medium">Search for music</p>
           <p className="text-muted-foreground">
-            Search for tracks, albums, or artists to add them to your library.
+            Search for tracks, albums, or artists using the search button above.
           </p>
         </div>
       )}
