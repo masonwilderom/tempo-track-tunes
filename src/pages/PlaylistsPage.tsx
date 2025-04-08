@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist } from '@/types';
@@ -22,28 +21,21 @@ const PlaylistsPage = () => {
   }, [isAuthenticated, authLoading, navigate]);
 
   // Fetch playlists using React Query
-  const { data: playlists, isLoading, error } = useQuery({
+  const { data: playlists, isLoading, error, isError } = useQuery({
     queryKey: ['playlists', token],
-    queryFn: () => {
+    queryFn: async () => {
       if (!token) return Promise.resolve([]);
+      console.log("Fetching playlists with token:", token.substring(0, 10) + "...");
       return getUserPlaylists(token);
     },
-    enabled: !!token,
-    meta: {
-      onError: (err: any) => {
-        console.error('Error fetching playlists:', err);
-        toast({
-          title: 'Error',
-          description: 'Failed to load playlists. Please try again later.',
-          variant: 'destructive'
-        });
-      }
-    }
+    enabled: !!token && isAuthenticated,
+    retry: 2,
+    retryDelay: 1000
   });
 
   // Handle error from the query
   useEffect(() => {
-    if (error) {
+    if (isError && error) {
       console.error('Error fetching playlists:', error);
       toast({
         title: 'Error',
@@ -51,7 +43,7 @@ const PlaylistsPage = () => {
         variant: 'destructive'
       });
     }
-  }, [error]);
+  }, [isError, error]);
 
   if (authLoading) {
     return (

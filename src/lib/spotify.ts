@@ -3,6 +3,7 @@ import { SpotifyPlaylist, SpotifyTrack, SpotifyTrackDetail, SpotifyUser } from "
 
 // Use the provided Spotify API client ID
 const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
+// For production, we use the current origin
 const REDIRECT_URI = window.location.origin + "/callback";
 const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
 
@@ -16,6 +17,9 @@ export const getSpotifyLoginUrl = () => {
     "playlist-modify-public",
     "playlist-modify-private",
   ];
+
+  // Log the redirect URI to help with debugging
+  console.log("Using redirect URI:", REDIRECT_URI);
 
   const loginUrl = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${scopes.join("%20")}&response_type=token&show_dialog=true`;
   

@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '@/components/ui/use-toast';
 
 export function useSpotifyAuth() {
   const [token, setToken] = useState<string | null>(null);
@@ -19,17 +20,25 @@ export function useSpotifyAuth() {
       
       if (isExpired) {
         // Token is expired, clear it
+        console.log("Spotify token has expired");
         localStorage.removeItem('spotify_token');
         localStorage.removeItem('spotify_token_expiration');
         setIsAuthenticated(false);
         setToken(null);
+        toast({
+          title: "Session Expired",
+          description: "Your Spotify session has expired. Please log in again.",
+          variant: "destructive"
+        });
       } else {
         // Token is valid
+        console.log("Using stored Spotify token");
         setToken(storedToken);
         setIsAuthenticated(true);
       }
     } else {
       // No token found
+      console.log("No Spotify token found");
       setIsAuthenticated(false);
       setToken(null);
     }
