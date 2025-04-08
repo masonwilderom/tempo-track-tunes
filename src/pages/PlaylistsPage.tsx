@@ -29,15 +29,29 @@ const PlaylistsPage = () => {
       return getUserPlaylists(token);
     },
     enabled: !!token,
-    onError: (err) => {
-      console.error('Error fetching playlists:', err);
+    meta: {
+      onError: (err: any) => {
+        console.error('Error fetching playlists:', err);
+        toast({
+          title: 'Error',
+          description: 'Failed to load playlists. Please try again later.',
+          variant: 'destructive'
+        });
+      }
+    }
+  });
+
+  // Handle error from the query
+  useEffect(() => {
+    if (error) {
+      console.error('Error fetching playlists:', error);
       toast({
         title: 'Error',
         description: 'Failed to load playlists. Please try again later.',
         variant: 'destructive'
       });
     }
-  });
+  }, [error]);
 
   if (authLoading) {
     return (

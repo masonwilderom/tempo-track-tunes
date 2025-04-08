@@ -30,16 +30,20 @@ const PlaylistDetailPage = () => {
       if (!token || !id) return Promise.resolve(null);
       return getPlaylist(token, id);
     },
-    enabled: !!token && !!id,
-    onError: (err) => {
-      console.error('Error fetching playlist details:', err);
+    enabled: !!token && !!id
+  });
+
+  // Handle error from the query
+  useEffect(() => {
+    if (playlistError) {
+      console.error('Error fetching playlist details:', playlistError);
       toast({
         title: 'Error',
         description: 'Failed to load playlist details. Please try again later.',
         variant: 'destructive'
       });
     }
-  });
+  }, [playlistError]);
 
   // Extract track IDs and fetch track details with audio features
   useEffect(() => {
