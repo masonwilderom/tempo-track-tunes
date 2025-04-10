@@ -1,11 +1,19 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { getSpotifyLoginUrl } from '@/lib/spotify';
 
 const LoginPage = () => {
-  const handleLoginClick = () => {
-    const loginUrl = getSpotifyLoginUrl();
-    window.location.href = loginUrl;
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLoginClick = async () => {
+    setIsLoading(true);
+    try {
+      const loginUrl = await getSpotifyLoginUrl();
+      window.location.href = loginUrl;
+    } catch (error) {
+      console.error("Error generating login URL:", error);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -23,9 +31,17 @@ const LoginPage = () => {
         
         <button
           onClick={handleLoginClick}
-          className="flex w-full items-center justify-center rounded-md bg-spotify-green px-4 py-3 font-medium text-white hover:bg-opacity-90"
+          disabled={isLoading}
+          className="flex w-full items-center justify-center rounded-md bg-spotify-green px-4 py-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-70"
         >
-          Connect with Spotify
+          {isLoading ? (
+            <>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+              Connecting...
+            </>
+          ) : (
+            "Connect with Spotify"
+          )}
         </button>
         
         <p className="mt-6 text-center text-sm text-muted-foreground">

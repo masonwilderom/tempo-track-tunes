@@ -1,35 +1,59 @@
 
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { getTokenFromUrl } from '@/lib/spotify';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { getAccessToken } from '@/lib/spotify';
+import { getPkceValues, clearPkceValues } from '@/lib/pkce';
 import { toast } from '@/components/ui/use-toast';
 
 const CallbackPage = () => {
+  const [searchParams] = useSearchParams();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleCallback = () => {
+    const handleCallback = async () => {
       try {
-        const token = getTokenFromUrl();
+        // Get the authorization code and state from the URL
+        const code = searchParams.get('code');
+        const state = searchParams.get('state');
+        const error = searchParams.get('error');
         
-        if (!token) {
-          setError('Authentication failed. No token received from Spotify.');
-          toast({
-            title: 'Authentication Failed',
-            description: 'No token received from Spotify.',
-            variant: 'destructive'
-          });
-          return;
+        if (error) {
+          throw new Error(`Authentication failed: ${error}`);
+        }
+        
+        if (!code) {
+          throw new Error('Authentication failed. No code received from Spotify.');
+        }
+        
+        // Get the stored PKCE values
+        const { codeVerifier, state: storedState } = getPkceValues();
+        
+        if (!codeVerifier) {
+          throw new Error('Authentication failed. Code verifier not found.');
+        }
+        
+        if (state !== storedState) {
+          throw new Error('Authentication failed. State mismatch.');
+        }
+        
+        // Exchange the code for an access token
+        const tokenData = await getAccessToken(code, codeVerifier);
+        
+        if (!tokenData) {
+          throw new Error('Authentication failed. Could not exchange code for token.');
         }
         
         // Store the token and expiration
-        localStorage.setItem('spotify_token', token);
+        localStorage.setItem('spotify_token', tokenData.access_token);
+        localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
         
         // Set the timestamp when the token was received
-        const expiresIn = 3600; // Default Spotify token expiration (1 hour)
-        const expirationTime = Date.now() + expiresIn * 1000;
+        const expirationTime = Date.now() + tokenData.expires_in * 1000;
         localStorage.setItem('spotify_token_expiration', expirationTime.toString());
+        
+        // Clear the PKCE values
+        clearPkceValues();
         
         toast({
           title: 'Authentication Successful',
@@ -37,10 +61,17 @@ const CallbackPage = () => {
         });
       } catch (err) {
         console.error('Error in authentication callback:', err);
-        setError('Authentication failed. Please try again.');
+        let errorMessage = 'Authentication failed. Please try again.';
+        
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        }
+        
+        setError(errorMessage);
+        
         toast({
           title: 'Authentication Failed',
-          description: 'An error occurred during authentication.',
+          description: errorMessage,
           variant: 'destructive'
         });
       } finally {
@@ -49,7 +80,7 @@ const CallbackPage = () => {
     };
 
     handleCallback();
-  }, []);
+  }, [searchParams]);
 
   if (isProcessing) {
     return (

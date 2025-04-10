@@ -1,14 +1,16 @@
-
-import { SpotifyPlaylist, SpotifyTrack, SpotifyTrackDetail, SpotifyUser } from "@/types";
+import { SpotifyPlaylist, SpotifyTrackDetail, SpotifyUser } from "@/types";
+import { generateCodeVerifier, generateRandomString, generateCodeChallenge, storePkceValues } from "./pkce";
 
 // Use the provided Spotify API client ID
 const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
 // For production, we use the current origin
 const REDIRECT_URI = window.location.origin + "/callback";
 const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
+const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
+const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
 
-// Function to get Spotify login URL
-export const getSpotifyLoginUrl = () => {
+// Function to get Spotify login URL with PKCE flow
+export const getSpotifyLoginUrl = async () => {
   const scopes = [
     "user-read-private",
     "user-read-email",
@@ -18,26 +20,98 @@ export const getSpotifyLoginUrl = () => {
     "playlist-modify-private",
   ];
 
+  // Generate PKCE code verifier and challenge
+  const codeVerifier = generateCodeVerifier();
+  const state = generateRandomString(16);
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  
+  // Store PKCE values for later use
+  storePkceValues(codeVerifier, state);
+  
   // Log the redirect URI to help with debugging
   console.log("Using redirect URI:", REDIRECT_URI);
 
-  const loginUrl = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${scopes.join("%20")}&response_type=token&show_dialog=true`;
+  // Create authorization URL with PKCE parameters
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    code_challenge_method: 'S256',
+    code_challenge: codeChallenge,
+    state: state,
+    scope: scopes.join(" ")
+  });
   
-  return loginUrl;
+  return `${AUTH_ENDPOINT}?${params.toString()}`;
 };
 
-// Function to get the access token from URL after login
-export const getTokenFromUrl = (): string | null => {
-  const hash = window.location.hash;
-  if (!hash || hash.length < 2) return null;
-  
-  const stringAfterHash = hash.substring(1);
-  const params = stringAfterHash.split("&");
-  
-  const tokenParam = params.find(param => param.startsWith("access_token="));
-  if (!tokenParam) return null;
-  
-  return tokenParam.split("=")[1];
+// Function to exchange authorization code for access token
+export const getAccessToken = async (code: string, codeVerifier: string): Promise<{
+  access_token: string;
+  expires_in: number;
+  refresh_token: string;
+} | null> => {
+  try {
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: codeVerifier
+    });
+
+    const response = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params.toString()
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error exchanging code for token:', errorData);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error exchanging code for token:', error);
+    return null;
+  }
+};
+
+// Function to refresh an expired access token
+export const refreshAccessToken = async (refreshToken: string): Promise<{
+  access_token: string;
+  expires_in: number;
+} | null> => {
+  try {
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken
+    });
+
+    const response = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params.toString()
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error refreshing token:', errorData);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    return null;
+  }
 };
 
 // Function to fetch user profile
