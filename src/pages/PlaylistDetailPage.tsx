@@ -8,13 +8,17 @@ import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from '@/components/ui/use-toast';
 import { formatDuration } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { RefreshCcw } from 'lucide-react';
 
 const PlaylistDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { token, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
+  const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
   const [comment, setComment] = useState('');
   const [tracks, setTracks] = useState<SpotifyTrackDetail[]>([]);
+  const [tracksError, setTracksError] = useState<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -24,7 +28,7 @@ const PlaylistDetailPage = () => {
   }, [isAuthenticated, authLoading, navigate]);
 
   // Fetch playlist details using React Query
-  const { data: playlist, isLoading: playlistLoading, error: playlistError } = useQuery({
+  const { data: playlist, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
     queryKey: ['playlist', token, id],
     queryFn: () => {
       if (!token || !id) return Promise.resolve(null);
@@ -51,11 +55,24 @@ const PlaylistDetailPage = () => {
       if (!token || !playlist || !playlist.tracks.items.length) return;
       
       try {
-        const trackIds = playlist.tracks.items.map(item => item.track.id);
+        // Clear previous error
+        setTracksError(null);
+        
+        // Get valid track IDs (filter out null or undefined)
+        const trackIds = playlist.tracks.items
+          .map(item => item.track?.id)
+          .filter(id => id) as string[];
+        
+        if (trackIds.length === 0) {
+          setTracks([]);
+          return;
+        }
+        
         const tracksData = await getTracksWithFeatures(token, trackIds);
         setTracks(tracksData);
       } catch (err) {
         console.error('Error fetching tracks with features:', err);
+        setTracksError('Failed to load track details. Please try again later.');
         toast({
           title: 'Error',
           description: 'Failed to load track details. Please try again later.',
@@ -74,6 +91,13 @@ const PlaylistDetailPage = () => {
     setComment('');
   };
 
+  const handleRetry = async () => {
+    // First try to refresh the token in case that's the issue
+    const refreshed = await refreshTokenIfNeeded();
+    // Then refetch the data
+    refetchPlaylist();
+  };
+
   // Calculate total duration
   const totalDuration = tracks.reduce((acc, track) => acc + track.duration_ms, 0);
 
@@ -88,9 +112,14 @@ const PlaylistDetailPage = () => {
   if (playlistError || !playlist) {
     return (
       <div className="container px-4 py-8">
-        <div className="rounded-md bg-red-50 p-4 text-red-800">
-          {playlistError ? 'Failed to load playlist details. Please try again later.' : 'Playlist not found'}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>
+            Failed to load playlist details. Please try again later.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={handleRetry} className="mt-2">
+          <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
+        </Button>
       </div>
     );
   }
@@ -99,17 +128,28 @@ const PlaylistDetailPage = () => {
     <div className="container px-4 py-8">
       <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
         <div className="md:col-span-2">
-          {tracks.length > 0 ? (
+          {tracksError && (
+            <div className="mb-4">
+              <Alert variant="destructive">
+                <AlertDescription>{tracksError}</AlertDescription>
+              </Alert>
+              <Button onClick={handleRetry} className="mt-2">
+                <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
+              </Button>
+            </div>
+          )}
+          
+          {!tracksError && tracks.length > 0 ? (
             tracks.map((track) => (
               <TrackItem key={track.id} track={track} />
             ))
-          ) : (
+          ) : !tracksError ? (
             <div className="rounded-md border p-8 text-center">
               <p className="text-muted-foreground">
                 No tracks found in this playlist.
               </p>
             </div>
-          )}
+          ) : null}
           
           <div className="mt-6 grid grid-cols-2 gap-4">
             <button className="rounded-md bg-light-green px-4 py-2 font-medium text-gray-800 hover:bg-opacity-90">

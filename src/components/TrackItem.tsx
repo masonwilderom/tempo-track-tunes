@@ -17,7 +17,9 @@ const TrackItem = ({ track }: TrackItemProps) => {
   };
   
   // Get musical key notation (C, C#, etc.) from Spotify's numeric notation
-  const getKeyNotation = (key: number, mode: number = 0) => {
+  const getKeyNotation = (key: number | undefined, mode: number | undefined = 0) => {
+    if (key === undefined) return 'Unknown';
+    
     const keys = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
     const modeText = mode === 1 ? '' : 'm'; // Major or minor
     
@@ -28,7 +30,8 @@ const TrackItem = ({ track }: TrackItemProps) => {
   };
   
   // Get color for key (based on your design)
-  const getKeyColor = (key: number) => {
+  const getKeyColor = (key: number | undefined) => {
+    if (key === undefined) return "";
     // This is a simplified version - you might want to extend this
     if (key === 8) return "text-key-8a"; // Orange
     if (key === 9) return "text-key-9b"; // Yellow
@@ -84,12 +87,12 @@ const TrackItem = ({ track }: TrackItemProps) => {
           
           <div className="flex flex-col items-end justify-center">
             <div className="mb-1 text-right">
-              <p className="text-xl font-bold">{track.audio_features?.tempo}</p>
+              <p className="text-xl font-bold">{track.audio_features?.tempo?.toFixed(0) || 'N/A'}</p>
               <p className="text-xs text-muted-foreground">BPM</p>
             </div>
             <div className="text-right">
-              <p className={`text-xl font-bold ${getKeyColor(track.audio_features?.key || 0)}`}>
-                {getKeyNotation(track.audio_features?.key || 0, track.audio_features?.mode || 0)}
+              <p className={`text-xl font-bold ${getKeyColor(track.audio_features?.key)}`}>
+                {getKeyNotation(track.audio_features?.key, track.audio_features?.mode)}
               </p>
               <p className="text-xs text-muted-foreground">KEY</p>
             </div>

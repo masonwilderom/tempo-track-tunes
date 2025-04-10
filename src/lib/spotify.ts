@@ -1,4 +1,3 @@
-
 import { SpotifyPlaylist, SpotifyTrackDetail, SpotifyUser } from "@/types";
 import { generateCodeVerifier, generateRandomString, generateCodeChallenge, storePkceValues } from "./pkce";
 
@@ -257,7 +256,7 @@ async function getAudioFeatures(token: string, trackId: string) {
 
 // Function to fetch track details including audio features
 export const getTracksWithFeatures = async (token: string, trackIds: string[]): Promise<SpotifyTrackDetail[]> => {
-  if (trackIds.length === 0) return [];
+  if (!trackIds || trackIds.length === 0) return [];
   
   try {
     // Get track info
@@ -273,22 +272,43 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
     
     const tracksData = await tracksResponse.json();
     
-    // Get audio features for these tracks
-    const featuresResponse = await fetch(`${SPOTIFY_API_BASE}/audio-features?ids=${trackIds.join(',')}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
+    // Spotify API has a limit of 100 IDs per request for audio features
+    // Split the requests if needed
+    let allFeatures = [];
+    
+    // Process in chunks of 50 to be safe
+    const chunkSize = 50;
+    for (let i = 0; i < trackIds.length; i += chunkSize) {
+      const chunk = trackIds.slice(i, i + chunkSize);
+      
+      try {
+        const featuresResponse = await fetch(`${SPOTIFY_API_BASE}/audio-features?ids=${chunk.join(',')}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        if (!featuresResponse.ok) {
+          console.error(`Error fetching audio features batch: ${featuresResponse.status}`);
+          // Continue with partial data
+          continue;
+        }
+        
+        const featuresData = await featuresResponse.json();
+        if (featuresData && featuresData.audio_features) {
+          allFeatures = [...allFeatures, ...featuresData.audio_features];
+        }
+      } catch (error) {
+        console.error(`Error processing audio features batch: ${error}`);
+        // Continue with partial data
       }
-    });
-    
-    if (!featuresResponse.ok) {
-      throw new Error(`Error fetching audio features: ${featuresResponse.status}`);
     }
-    
-    const featuresData = await featuresResponse.json();
     
     // Combine track info with audio features
     return tracksData.tracks.map((track: any, index: number) => {
-      const features = featuresData.audio_features[index];
+      // Find matching audio feature by track ID
+      const features = allFeatures.find((f: any) => f && f.id === track.id);
+      
       return {
         id: track.id,
         name: track.name,
