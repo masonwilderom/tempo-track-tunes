@@ -14,23 +14,38 @@ export function useSpotifyAuth() {
 
   // Function to refresh the token
   const refreshTokenIfNeeded = useCallback(async () => {
+    console.log("Checking if token refresh is needed...");
     const storedRefreshToken = localStorage.getItem('spotify_refresh_token');
+    const expirationTime = localStorage.getItem('spotify_token_expiration');
+    const currentTime = Date.now();
     
     if (!storedRefreshToken) {
+      console.log("No refresh token available");
+      return false;
+    }
+
+    // Only refresh if token is expired or about to expire (within 5 minutes)
+    const shouldRefresh = !expirationTime || currentTime > parseInt(expirationTime) - 5 * 60 * 1000;
+    
+    if (!shouldRefresh) {
+      console.log("Token is still valid, no need to refresh");
       return false;
     }
     
+    console.log("Token needs refreshing, attempting refresh...");
     try {
       const tokenData = await refreshAccessToken(storedRefreshToken);
       
       if (!tokenData) {
+        console.error("Refresh token request failed - no data returned");
+        clearAuthData();
         return false;
       }
       
       // Store the new access token and its expiration time
       localStorage.setItem('spotify_token', tokenData.access_token);
-      const expirationTime = Date.now() + tokenData.expires_in * 1000;
-      localStorage.setItem('spotify_token_expiration', expirationTime.toString());
+      const newExpirationTime = Date.now() + tokenData.expires_in * 1000;
+      localStorage.setItem('spotify_token_expiration', newExpirationTime.toString());
       
       setToken(tokenData.access_token);
       setIsAuthenticated(true);
@@ -39,13 +54,25 @@ export function useSpotifyAuth() {
       return true;
     } catch (error) {
       console.error("Error refreshing token:", error);
+      clearAuthData();
       return false;
     }
+  }, []);
+
+  const clearAuthData = useCallback(() => {
+    localStorage.removeItem('spotify_token');
+    localStorage.removeItem('spotify_token_expiration');
+    localStorage.removeItem('spotify_refresh_token');
+    clearPkceValues();
+    setIsAuthenticated(false);
+    setToken(null);
+    setRefreshToken(null);
   }, []);
 
   useEffect(() => {
     // Check if user is authenticated
     const checkAuth = async () => {
+      console.log("Checking authentication status...");
       const storedToken = localStorage.getItem('spotify_token');
       const expirationTime = localStorage.getItem('spotify_token_expiration');
       const storedRefreshToken = localStorage.getItem('spotify_refresh_token');
@@ -63,6 +90,7 @@ export function useSpotifyAuth() {
           
           if (!refreshed) {
             // Failed to refresh token
+            console.log("Failed to refresh token, clearing auth data");
             clearAuthData();
             toast({
               title: "Session Expired",
@@ -72,6 +100,7 @@ export function useSpotifyAuth() {
           }
         } else if (isExpired) {
           // Token is expired and we have no refresh token
+          console.log("Token expired and no refresh token available");
           clearAuthData();
           toast({
             title: "Session Expired",
@@ -80,7 +109,7 @@ export function useSpotifyAuth() {
           });
         } else {
           // Token is valid
-          console.log("Using stored Spotify token");
+          console.log("Using stored Spotify token (valid)");
           setToken(storedToken);
           setIsAuthenticated(true);
         }
@@ -95,22 +124,19 @@ export function useSpotifyAuth() {
     };
 
     checkAuth();
-  }, [refreshTokenIfNeeded]);
+  }, [refreshTokenIfNeeded, clearAuthData]);
 
-  const clearAuthData = () => {
-    localStorage.removeItem('spotify_token');
-    localStorage.removeItem('spotify_token_expiration');
-    localStorage.removeItem('spotify_refresh_token');
-    clearPkceValues();
-    setIsAuthenticated(false);
-    setToken(null);
-    setRefreshToken(null);
-  };
-
-  const logout = () => {
+  const logout = useCallback(() => {
     clearAuthData();
     navigate('/login');
-  };
+  }, [clearAuthData, navigate]);
 
-  return { token, refreshToken, isAuthenticated, isLoading, logout, refreshTokenIfNeeded };
+  return { 
+    token, 
+    refreshToken, 
+    isAuthenticated, 
+    isLoading, 
+    logout, 
+    refreshTokenIfNeeded 
+  };
 }

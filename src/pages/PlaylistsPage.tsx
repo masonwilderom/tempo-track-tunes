@@ -10,7 +10,7 @@ import { toast } from '@/components/ui/use-toast';
 
 const PlaylistsPage = () => {
   const navigate = useNavigate();
-  const { token, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
+  const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
   const [showNotification, setShowNotification] = useState(true);
 
   // Redirect to login if not authenticated
@@ -21,29 +21,63 @@ const PlaylistsPage = () => {
   }, [isAuthenticated, authLoading, navigate]);
 
   // Fetch playlists using React Query
-  const { data: playlists, isLoading, error, isError } = useQuery({
+  const { data: playlists, isLoading, error, isError, refetch } = useQuery({
     queryKey: ['playlists', token],
     queryFn: async () => {
-      if (!token) return Promise.resolve([]);
-      console.log("Fetching playlists with token:", token.substring(0, 10) + "...");
-      return getUserPlaylists(token);
+      if (!token) {
+        console.log("No token available for fetching playlists");
+        return Promise.resolve([]);
+      }
+      
+      try {
+        console.log("Fetching playlists with token:", token.substring(0, 10) + "...");
+        // Try to refresh token before fetching playlists
+        const needsRefresh = await refreshTokenIfNeeded();
+        const currentToken = needsRefresh ? localStorage.getItem('spotify_token') : token;
+        
+        if (!currentToken) {
+          throw new Error("No valid token available after refresh attempt");
+        }
+        
+        return await getUserPlaylists(currentToken);
+      } catch (err) {
+        console.error("Error in playlist query function:", err);
+        throw err;
+      }
     },
     enabled: !!token && isAuthenticated,
-    retry: 2,
-    retryDelay: 1000
+    retry: 1,
+    retryDelay: 2000
   });
 
   // Handle error from the query
   useEffect(() => {
     if (isError && error) {
       console.error('Error fetching playlists:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load playlists. Please try again later.',
-        variant: 'destructive'
-      });
+      
+      // Check if it's an auth error and refresh token
+      if (error instanceof Error && error.message.includes('401')) {
+        refreshTokenIfNeeded().then(refreshed => {
+          if (refreshed) {
+            refetch();
+          } else {
+            toast({
+              title: 'Authentication Error',
+              description: 'Your session has expired. Please login again.',
+              variant: 'destructive'
+            });
+            navigate('/login');
+          }
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to load playlists. Please try again later.',
+          variant: 'destructive'
+        });
+      }
     }
-  }, [isError, error]);
+  }, [isError, error, refreshTokenIfNeeded, refetch, navigate]);
 
   if (authLoading) {
     return (
@@ -72,7 +106,13 @@ const PlaylistsPage = () => {
             </div>
           ) : error ? (
             <div className="rounded-md bg-red-50 p-4 text-red-800">
-              Failed to load playlists. Please try again later.
+              <p>Failed to load playlists. Please try again later.</p>
+              <button 
+                onClick={() => refetch()} 
+                className="mt-2 rounded bg-red-100 px-2 py-1 text-sm hover:bg-red-200"
+              >
+                Try Again
+              </button>
             </div>
           ) : playlists && playlists.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

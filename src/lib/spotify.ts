@@ -1,3 +1,4 @@
+
 import { SpotifyPlaylist, SpotifyTrackDetail, SpotifyUser } from "@/types";
 import { generateCodeVerifier, generateRandomString, generateCodeChallenge, storePkceValues } from "./pkce";
 
@@ -142,6 +143,7 @@ export const getUserProfile = async (token: string): Promise<SpotifyUser> => {
 // Function to fetch user playlists
 export const getUserPlaylists = async (token: string): Promise<SpotifyPlaylist[]> => {
   try {
+    console.log("Making request to fetch playlists with token:", token.substring(0, 10) + "...");
     const response = await fetch(`${SPOTIFY_API_BASE}/me/playlists?limit=50`, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -149,21 +151,30 @@ export const getUserPlaylists = async (token: string): Promise<SpotifyPlaylist[]
     });
     
     if (!response.ok) {
-      throw new Error(`Error fetching playlists: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Playlist fetch error response:", errorData);
+      throw new Error(`Error fetching playlists: ${response.status} - ${JSON.stringify(errorData)}`);
     }
     
     const data = await response.json();
+    console.log("Playlists API response:", data);
+    
+    if (!data || !data.items) {
+      console.error("Invalid playlists data structure:", data);
+      return [];
+    }
+    
     return data.items.map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description || "",
-      images: item.images.length > 0 ? item.images : [{ url: "/placeholder.svg" }],
+      images: item.images && item.images.length > 0 ? item.images : [{ url: "/placeholder.svg" }],
       owner: {
-        id: item.owner.id,
-        display_name: item.owner.display_name || item.owner.id
+        id: item.owner?.id || "unknown",
+        display_name: (item.owner?.display_name || item.owner?.id || "Unknown User")
       },
       tracks: {
-        total: item.tracks.total,
+        total: item.tracks?.total || 0,
         items: []
       }
     }));
