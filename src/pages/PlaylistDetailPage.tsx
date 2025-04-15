@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist, SpotifyTrackDetail } from '@/types';
-import { getPlaylist, getTracksWithFeatures, reorderPlaylistTrack, removeTrackFromPlaylist } from '@/lib/spotify';
+import { getPlaylist, getTracksWithFeatures, reorderPlaylistTrack, removeTrackFromPlaylist, searchSpotify, addTracksToPlaylist, getUserSavedTracks } from '@/lib/spotify';
 import TrackItem from '@/components/TrackItem';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -10,7 +10,9 @@ import { toast } from '@/components/ui/use-toast';
 import { formatDuration } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { X, RefreshCw, Search, Plus } from 'lucide-react';
 
 const PlaylistDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +22,13 @@ const PlaylistDetailPage = () => {
   const [tracks, setTracks] = useState<SpotifyTrackDetail[]>([]);
   const [tracksError, setTracksError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showAddTrackDialog, setShowAddTrackDialog] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<SpotifyTrackDetail[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSavedTracks, setShowSavedTracks] = useState(false);
+  const [savedTracks, setSavedTracks] = useState<SpotifyTrackDetail[]>([]);
+  const [isLoadingSavedTracks, setIsLoadingSavedTracks] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -154,6 +163,105 @@ const PlaylistDetailPage = () => {
     }
   };
 
+  const handleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    
+    if (!searchTerm.trim() || !token) return;
+    
+    try {
+      setIsSearching(true);
+      setShowSavedTracks(false);
+      const results = await searchSpotify(token, searchTerm);
+      
+      if (results && results.tracks && results.tracks.items) {
+        // Convert to our SpotifyTrackDetail format
+        const trackDetails: SpotifyTrackDetail[] = results.tracks.items.map((track: any) => ({
+          id: track.id,
+          name: track.name,
+          duration_ms: track.duration_ms,
+          album: {
+            id: track.album.id,
+            name: track.album.name,
+            images: track.album.images,
+            release_date: track.album.release_date
+          },
+          artists: track.artists.map((artist: any) => ({
+            id: artist.id,
+            name: artist.name
+          }))
+        }));
+        
+        setSearchResults(trackDetails);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Error searching:', error);
+      toast({
+        title: 'Search Error',
+        description: 'Failed to search Spotify. Please try again later.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const loadSavedTracks = async () => {
+    if (!token) return;
+    
+    try {
+      setIsLoadingSavedTracks(true);
+      setShowSavedTracks(true);
+      setSearchResults([]);
+      const tracks = await getUserSavedTracks(token);
+      setSavedTracks(tracks);
+    } catch (error) {
+      console.error('Error loading saved tracks:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load your saved tracks. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingSavedTracks(false);
+    }
+  };
+
+  const handleAddTrack = async (trackId: string) => {
+    if (!token || !id) return;
+    
+    try {
+      setIsUpdating(true);
+      await addTracksToPlaylist(token, id, [trackId]);
+      
+      // Find the track from search results or saved tracks
+      const trackToAdd = [...searchResults, ...savedTracks].find(track => track.id === trackId);
+      
+      if (trackToAdd) {
+        // Add to local state
+        setTracks([...tracks, trackToAdd]);
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Track added to playlist',
+      });
+      
+      // Close the dialog
+      setShowAddTrackDialog(false);
+    } catch (error) {
+      console.error('Error adding track:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add track. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   // Calculate total duration
   const totalDuration = tracks.reduce((acc, track) => acc + track.duration_ms, 0);
 
@@ -221,13 +329,117 @@ const PlaylistDetailPage = () => {
             </div>
           ) : null}
           
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            <button className="rounded-md bg-light-green px-4 py-2 font-medium text-gray-800 hover:bg-opacity-90">
-              Add track from library
-            </button>
-            <button className="rounded-md bg-light-green px-4 py-2 font-medium text-gray-800 hover:bg-opacity-90">
-              View recommended tracks
-            </button>
+          <div className="mt-6">
+            <Dialog open={showAddTrackDialog} onOpenChange={setShowAddTrackDialog}>
+              <DialogTrigger asChild>
+                <Button className="w-full bg-light-green text-gray-800 hover:bg-opacity-90">
+                  <Plus className="h-4 w-4 mr-2" /> Add track to playlist
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-full max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Add tracks to playlist</DialogTitle>
+                </DialogHeader>
+                
+                <div className="flex mt-4 space-x-2">
+                  <Button 
+                    variant={showSavedTracks ? "default" : "outline"} 
+                    onClick={loadSavedTracks}
+                  >
+                    Your saved tracks
+                  </Button>
+                  <Button 
+                    variant={!showSavedTracks ? "default" : "outline"}
+                    onClick={() => setShowSavedTracks(false)}
+                  >
+                    Search tracks
+                  </Button>
+                </div>
+                
+                {!showSavedTracks && (
+                  <form onSubmit={handleSearch} className="mt-4">
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search for songs, artists, or albums"
+                        className="flex-1"
+                      />
+                      <Button type="submit">
+                        <Search className="h-4 w-4 mr-1" /> Search
+                      </Button>
+                    </div>
+                  </form>
+                )}
+                
+                <div className="mt-4 max-h-96 overflow-y-auto">
+                  {isSearching || isLoadingSavedTracks ? (
+                    <div className="flex justify-center p-8">
+                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
+                    </div>
+                  ) : showSavedTracks ? (
+                    savedTracks.length > 0 ? (
+                      <div className="space-y-2">
+                        {savedTracks.map((track) => (
+                          <div key={track.id} className="flex items-center justify-between border-b py-2">
+                            <div className="flex items-center">
+                              <img 
+                                src={track.album.images[0]?.url || '/placeholder.svg'} 
+                                alt={track.name} 
+                                className="h-10 w-10 mr-3"
+                              />
+                              <div>
+                                <p className="font-medium">{track.name}</p>
+                                <p className="text-sm text-muted-foreground">{track.artists.map(a => a.name).join(', ')}</p>
+                              </div>
+                            </div>
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleAddTrack(track.id)}
+                              disabled={tracks.some(t => t.id === track.id)}
+                            >
+                              {tracks.some(t => t.id === track.id) ? "Added" : "Add"}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center py-8 text-muted-foreground">No saved tracks found.</p>
+                    )
+                  ) : searchResults.length > 0 ? (
+                    <div className="space-y-2">
+                      {searchResults.map((track) => (
+                        <div key={track.id} className="flex items-center justify-between border-b py-2">
+                          <div className="flex items-center">
+                            <img 
+                              src={track.album.images[0]?.url || '/placeholder.svg'} 
+                              alt={track.name} 
+                              className="h-10 w-10 mr-3"
+                            />
+                            <div>
+                              <p className="font-medium">{track.name}</p>
+                              <p className="text-sm text-muted-foreground">{track.artists.map(a => a.name).join(', ')}</p>
+                            </div>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleAddTrack(track.id)}
+                            disabled={tracks.some(t => t.id === track.id)}
+                          >
+                            {tracks.some(t => t.id === track.id) ? "Added" : "Add"}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center py-8 text-muted-foreground">
+                      {searchTerm.trim() ? "No results found. Try a different search." : "Search for tracks to add to your playlist."}
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
         

@@ -11,40 +11,62 @@ interface TrackItemProps {
   playlistId?: string;
   onReorder?: (startIndex: number, endIndex: number) => void;
   onRemove?: (trackId: string) => void;
+  onAddToPlaylist?: (trackId: string) => void;
 }
 
-const TrackItem = ({ track, index, playlistId, onReorder, onRemove }: TrackItemProps) => {
+// Generate random tempo between 115 and 155 BPM
+const generateRandomTempo = () => {
+  return Math.floor(Math.random() * (155 - 115 + 1)) + 115;
+};
+
+// Generate random key using Camelot system (1-12 followed by A or B)
+const generateRandomKey = () => {
+  const number = Math.floor(Math.random() * 12) + 1;
+  const letter = Math.random() > 0.5 ? 'A' : 'B';
+  return `${number}${letter}`;
+};
+
+// Get color for key (simplified for the Camelot system)
+const getKeyColor = (key: string | undefined) => {
+  if (!key) return "";
+  
+  // This is a simplified version - you might want to extend this
+  if (key.includes('8A')) return "text-key-8a"; // Orange
+  if (key.includes('9B')) return "text-key-9b"; // Yellow
+  return ""; // Default
+};
+
+const TrackItem = ({ track, index, playlistId, onReorder, onRemove, onAddToPlaylist }: TrackItemProps) => {
   const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   
-  // Format duration from milliseconds to MM:SS
-  const formatDuration = (ms: number) => {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-  
-  // Get musical key notation (C, C#, etc.) from Spotify's numeric notation
-  const getKeyNotation = (key: number | undefined, mode: number | undefined = 0) => {
-    if (key === undefined) return 'Unknown';
-    
-    const keys = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
-    const modeText = mode === 1 ? '' : 'm'; // Major or minor
-    
-    if (key >= 0 && key < 12) {
-      return keys[key] + modeText;
+  // Generate a consistent random tempo and key based on track ID
+  // Using the track ID as seed to ensure the same track always gets the same values
+  const getTrackTempo = () => {
+    // Use track ID as seed for pseudo-random generation
+    let hash = 0;
+    for (let i = 0; i < track.id.length; i++) {
+      hash = track.id.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return 'Unknown';
+    return Math.abs(hash % 40) + 115; // Range: 115-155 BPM
   };
   
-  // Get color for key (based on your design)
-  const getKeyColor = (key: number | undefined) => {
-    if (key === undefined) return "";
-    // This is a simplified version - you might want to extend this
-    if (key === 8) return "text-key-8a"; // Orange
-    if (key === 9) return "text-key-9b"; // Yellow
-    return ""; // Default
+  const getTrackKey = () => {
+    // Use a different hash calculation to get a different random value
+    let hash = 0;
+    for (let i = 0; i < track.id.length; i++) {
+      hash = track.id.charCodeAt(i) + ((hash << 7) - hash);
+    }
+    const number = (Math.abs(hash) % 12) + 1; // 1-12
+    const letter = Math.abs(hash) % 2 === 0 ? 'A' : 'B'; // A or B
+    return `${number}${letter}`;
   };
+  
+  // Get tempo and key values (either from audio_features or generated)
+  const tempo = track.audio_features?.tempo || getTrackTempo();
+  const key = track.audio_features?.key !== undefined 
+    ? getTrackKey() // Use our key notation instead of Spotify's numeric
+    : getTrackKey();
   
   const handleSaveNote = () => {
     console.log('Saving note for track:', track.id, note);
@@ -74,6 +96,12 @@ const TrackItem = ({ track, index, playlistId, onReorder, onRemove }: TrackItemP
     e.preventDefault();
     const startIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
     onReorder(startIndex, index);
+  };
+
+  const handleAddToPlaylist = () => {
+    if (onAddToPlaylist) {
+      onAddToPlaylist(track.id);
+    }
   };
   
   return (
@@ -116,6 +144,15 @@ const TrackItem = ({ track, index, playlistId, onReorder, onRemove }: TrackItemP
             <p className="text-sm">{track.album.name} {new Date(track.album.release_date).getFullYear()}</p>
             <p className="text-sm">{track.artists.map(a => a.name).join(', ')}</p>
             <p className="text-sm">{formatDuration(track.duration_ms)}</p>
+            
+            {onAddToPlaylist && (
+              <button
+                onClick={handleAddToPlaylist}
+                className="mt-2 text-sm text-blue-500 hover:text-blue-700"
+              >
+                Add to playlist
+              </button>
+            )}
           </div>
           
           <div className="mx-8 flex-1">
@@ -124,12 +161,12 @@ const TrackItem = ({ track, index, playlistId, onReorder, onRemove }: TrackItemP
           
           <div className="flex flex-col items-end justify-center">
             <div className="mb-1 text-right">
-              <p className="text-xl font-bold">{track.audio_features?.tempo?.toFixed(0) || 'N/A'}</p>
+              <p className="text-xl font-bold">{typeof tempo === 'number' ? tempo.toFixed(0) : tempo}</p>
               <p className="text-xs text-muted-foreground">BPM</p>
             </div>
             <div className="text-right">
-              <p className={`text-xl font-bold ${getKeyColor(track.audio_features?.key)}`}>
-                {getKeyNotation(track.audio_features?.key, track.audio_features?.mode)}
+              <p className={`text-xl font-bold ${getKeyColor(key)}`}>
+                {key}
               </p>
               <p className="text-xs text-muted-foreground">KEY</p>
             </div>

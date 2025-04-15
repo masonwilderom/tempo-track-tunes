@@ -1,15 +1,16 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchSpotify, getUserSavedTracks } from '@/lib/spotify';
-import { SpotifyTrackDetail } from '@/types';
+import { searchSpotify, getUserSavedTracks, getUserPlaylists, addTracksToPlaylist } from '@/lib/spotify';
+import { SpotifyTrackDetail, SpotifyPlaylist } from '@/types';
 import TrackItem from '@/components/TrackItem';
-import { Search, X, RefreshCw } from 'lucide-react';
+import { Search, X, RefreshCw, Plus } from 'lucide-react';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { toast } from '@/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const LibraryPage = () => {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ const LibraryPage = () => {
   const [searchResults, setSearchResults] = useState<SpotifyTrackDetail[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+  const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -39,6 +42,19 @@ const LibraryPage = () => {
       return getUserSavedTracks(token);
     },
     enabled: !!token && isAuthenticated
+  });
+
+  // Fetch user's playlists for the add to playlist functionality
+  const {
+    data: userPlaylists,
+    isLoading: playlistsLoading,
+  } = useQuery({
+    queryKey: ['userPlaylists', token],
+    queryFn: async () => {
+      if (!token) return [];
+      return getUserPlaylists(token);
+    },
+    enabled: !!token && isAuthenticated && showPlaylistDialog
   });
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -94,6 +110,33 @@ const LibraryPage = () => {
     // Try to refresh the token first
     await refreshTokenIfNeeded();
     refetchTracks();
+  };
+
+  const handleAddToPlaylist = (trackId: string) => {
+    setSelectedTrackId(trackId);
+    setShowPlaylistDialog(true);
+  };
+
+  const handleAddTrackToPlaylist = async (playlistId: string) => {
+    if (!token || !selectedTrackId) return;
+    
+    try {
+      await addTracksToPlaylist(token, playlistId, [selectedTrackId]);
+      
+      toast({
+        title: 'Success',
+        description: 'Track added to playlist',
+      });
+      
+      setShowPlaylistDialog(false);
+    } catch (error) {
+      console.error('Error adding track to playlist:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add track to playlist. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (authLoading) {
@@ -174,7 +217,11 @@ const LibraryPage = () => {
       ) : searchResults.length > 0 ? (
         <div>
           {searchResults.map((track) => (
-            <TrackItem key={track.id} track={track} />
+            <TrackItem 
+              key={track.id} 
+              track={track} 
+              onAddToPlaylist={() => handleAddToPlaylist(track.id)}
+            />
           ))}
         </div>
       ) : tracksLoading ? (
@@ -196,7 +243,11 @@ const LibraryPage = () => {
         <div>
           <h2 className="mb-4 text-xl font-semibold">Your Saved Tracks</h2>
           {savedTracks.map((track) => (
-            <TrackItem key={track.id} track={track} />
+            <TrackItem 
+              key={track.id} 
+              track={track} 
+              onAddToPlaylist={() => handleAddToPlaylist(track.id)}
+            />
           ))}
         </div>
       ) : (
@@ -207,6 +258,42 @@ const LibraryPage = () => {
           </p>
         </div>
       )}
+      
+      <Dialog open={showPlaylistDialog} onOpenChange={setShowPlaylistDialog}>
+        <DialogContent className="w-full max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to Playlist</DialogTitle>
+          </DialogHeader>
+          
+          {playlistsLoading ? (
+            <div className="flex justify-center p-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
+            </div>
+          ) : userPlaylists && userPlaylists.length > 0 ? (
+            <div className="max-h-96 overflow-y-auto">
+              {userPlaylists.map((playlist: SpotifyPlaylist) => (
+                <button
+                  key={playlist.id}
+                  onClick={() => handleAddTrackToPlaylist(playlist.id)}
+                  className="flex w-full items-center p-2 hover:bg-gray-100 rounded-md"
+                >
+                  <img 
+                    src={playlist.images[0]?.url || "/placeholder.svg"} 
+                    alt={playlist.name}
+                    className="h-10 w-10 mr-3"
+                  />
+                  <div className="text-left">
+                    <p className="font-medium">{playlist.name}</p>
+                    <p className="text-sm text-muted-foreground">{playlist.tracks.total} tracks</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center py-4">You don't have any playlists yet.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
