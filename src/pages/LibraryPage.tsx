@@ -39,6 +39,7 @@ const LibraryPage = () => {
     queryKey: ['userSavedTracks', token],
     queryFn: async () => {
       if (!token) return [];
+      console.log("Fetching user's saved tracks with token:", token.substring(0, 10) + "...");
       return getUserSavedTracks(token);
     },
     enabled: !!token && isAuthenticated
@@ -52,6 +53,7 @@ const LibraryPage = () => {
     queryKey: ['userPlaylists', token],
     queryFn: async () => {
       if (!token) return [];
+      console.log("Fetching user's playlists with token:", token.substring(0, 10) + "...");
       return getUserPlaylists(token);
     },
     enabled: !!token && isAuthenticated && showPlaylistDialog

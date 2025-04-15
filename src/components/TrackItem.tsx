@@ -14,18 +14,6 @@ interface TrackItemProps {
   onAddToPlaylist?: (trackId: string) => void;
 }
 
-// Generate random tempo between 115 and 155 BPM
-const generateRandomTempo = () => {
-  return Math.floor(Math.random() * (155 - 115 + 1)) + 115;
-};
-
-// Generate random key using Camelot system (1-12 followed by A or B)
-const generateRandomKey = () => {
-  const number = Math.floor(Math.random() * 12) + 1;
-  const letter = Math.random() > 0.5 ? 'A' : 'B';
-  return `${number}${letter}`;
-};
-
 // Get color for key (simplified for the Camelot system)
 const getKeyColor = (key: string | undefined) => {
   if (!key) return "";
@@ -40,33 +28,11 @@ const TrackItem = ({ track, index, playlistId, onReorder, onRemove, onAddToPlayl
   const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   
-  // Generate a consistent random tempo and key based on track ID
-  // Using the track ID as seed to ensure the same track always gets the same values
-  const getTrackTempo = () => {
-    // Use track ID as seed for pseudo-random generation
-    let hash = 0;
-    for (let i = 0; i < track.id.length; i++) {
-      hash = track.id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash % 40) + 115; // Range: 115-155 BPM
-  };
-  
-  const getTrackKey = () => {
-    // Use a different hash calculation to get a different random value
-    let hash = 0;
-    for (let i = 0; i < track.id.length; i++) {
-      hash = track.id.charCodeAt(i) + ((hash << 7) - hash);
-    }
-    const number = (Math.abs(hash) % 12) + 1; // 1-12
-    const letter = Math.abs(hash) % 2 === 0 ? 'A' : 'B'; // A or B
-    return `${number}${letter}`;
-  };
-  
   // Get tempo and key values (either from audio_features or generated)
-  const tempo = track.audio_features?.tempo || getTrackTempo();
-  const key = track.audio_features?.key !== undefined 
-    ? getTrackKey() // Use our key notation instead of Spotify's numeric
-    : getTrackKey();
+  const tempo = track.audio_features?.tempo || 120;
+  const key = track.audio_features?.key !== undefined && typeof track.audio_features.key === 'string'
+    ? track.audio_features.key // Use the key if it's already in Camelot format
+    : '1A'; // Default value
   
   const handleSaveNote = () => {
     console.log('Saving note for track:', track.id, note);

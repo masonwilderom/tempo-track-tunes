@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist, SpotifyTrackDetail } from '@/types';
@@ -29,15 +28,15 @@ const PlaylistDetailPage = () => {
   const [showSavedTracks, setShowSavedTracks] = useState(false);
   const [savedTracks, setSavedTracks] = useState<SpotifyTrackDetail[]>([]);
   const [isLoadingSavedTracks, setIsLoadingSavedTracks] = useState(false);
+  const [insertIndex, setInsertIndex] = useState<number | null>(null);
+  const [hoverInsertIndex, setHoverInsertIndex] = useState<number | null>(null);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  // Fetch playlist details using React Query
   const { data: playlist, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
     queryKey: ['playlist', token, id],
     queryFn: () => {
@@ -47,7 +46,6 @@ const PlaylistDetailPage = () => {
     enabled: !!token && !!id
   });
 
-  // Handle error from the query
   useEffect(() => {
     if (playlistError) {
       console.error('Error fetching playlist details:', playlistError);
@@ -59,16 +57,13 @@ const PlaylistDetailPage = () => {
     }
   }, [playlistError]);
 
-  // Extract track IDs and fetch track details with audio features
   useEffect(() => {
     const fetchTracksWithFeatures = async () => {
       if (!token || !playlist || !playlist.tracks.items.length) return;
       
       try {
-        // Clear previous error
         setTracksError(null);
         
-        // Get valid track IDs (filter out null or undefined)
         const trackIds = playlist.tracks.items
           .map(item => item.track?.id)
           .filter(id => id) as string[];
@@ -97,14 +92,10 @@ const PlaylistDetailPage = () => {
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Adding comment:', comment);
-    // In a real app, this would save to Firebase
-    setComment('');
   };
 
   const handleRetry = async () => {
-    // First try to refresh the token in case that's the issue
     const refreshed = await refreshTokenIfNeeded();
-    // Then refetch the data
     refetchPlaylist();
   };
 
@@ -115,7 +106,6 @@ const PlaylistDetailPage = () => {
       setIsUpdating(true);
       await reorderPlaylistTrack(token, id, startIndex, endIndex);
       
-      // Update local state to reflect the change
       const updatedTracks = [...tracks];
       const [movedTrack] = updatedTracks.splice(startIndex, 1);
       updatedTracks.splice(endIndex, 0, movedTrack);
@@ -144,7 +134,6 @@ const PlaylistDetailPage = () => {
       setIsUpdating(true);
       await removeTrackFromPlaylist(token, id, trackId);
       
-      // Update local state
       setTracks(tracks.filter(track => track.id !== trackId));
       
       toast({
@@ -174,7 +163,6 @@ const PlaylistDetailPage = () => {
       const results = await searchSpotify(token, searchTerm);
       
       if (results && results.tracks && results.tracks.items) {
-        // Convert to our SpotifyTrackDetail format
         const trackDetails: SpotifyTrackDetail[] = results.tracks.items.map((track: any) => ({
           id: track.id,
           name: track.name,
@@ -214,7 +202,9 @@ const PlaylistDetailPage = () => {
       setIsLoadingSavedTracks(true);
       setShowSavedTracks(true);
       setSearchResults([]);
+      console.log("Loading saved tracks for add dialog");
       const tracks = await getUserSavedTracks(token);
+      console.log("Saved tracks loaded:", tracks.length);
       setSavedTracks(tracks);
     } catch (error) {
       console.error('Error loading saved tracks:', error);
@@ -228,6 +218,11 @@ const PlaylistDetailPage = () => {
     }
   };
 
+  const openAddTrackDialog = (index: number | null = null) => {
+    setInsertIndex(index);
+    setShowAddTrackDialog(true);
+  };
+
   const handleAddTrack = async (trackId: string) => {
     if (!token || !id) return;
     
@@ -235,12 +230,16 @@ const PlaylistDetailPage = () => {
       setIsUpdating(true);
       await addTracksToPlaylist(token, id, [trackId]);
       
-      // Find the track from search results or saved tracks
       const trackToAdd = [...searchResults, ...savedTracks].find(track => track.id === trackId);
       
       if (trackToAdd) {
-        // Add to local state
-        setTracks([...tracks, trackToAdd]);
+        if (insertIndex !== null) {
+          const newTracks = [...tracks];
+          newTracks.splice(insertIndex, 0, trackToAdd);
+          setTracks(newTracks);
+        } else {
+          setTracks([...tracks, trackToAdd]);
+        }
       }
       
       toast({
@@ -248,8 +247,8 @@ const PlaylistDetailPage = () => {
         description: 'Track added to playlist',
       });
       
-      // Close the dialog
       setShowAddTrackDialog(false);
+      setInsertIndex(null);
     } catch (error) {
       console.error('Error adding track:', error);
       toast({
@@ -262,7 +261,6 @@ const PlaylistDetailPage = () => {
     }
   };
 
-  // Calculate total duration
   const totalDuration = tracks.reduce((acc, track) => acc + track.duration_ms, 0);
 
   if (authLoading || playlistLoading) {
@@ -310,35 +308,76 @@ const PlaylistDetailPage = () => {
             </div>
           )}
           
-          {!tracksError && tracks.length > 0 ? (
-            tracks.map((track, index) => (
-              <TrackItem 
-                key={track.id} 
-                track={track} 
-                index={index}
-                playlistId={id}
-                onReorder={handleReorderTrack}
-                onRemove={handleRemoveTrack}
-              />
-            ))
-          ) : !tracksError ? (
-            <div className="rounded-md border p-8 text-center">
-              <p className="text-muted-foreground">
-                No tracks found in this playlist.
-              </p>
-            </div>
-          ) : null}
+          <div className="relative">
+            {!tracksError && tracks.length > 0 ? (
+              <div>
+                {tracks.map((track, index) => (
+                  <React.Fragment key={track.id + "-" + index}>
+                    {index === 0 && (
+                      <div 
+                        className="relative h-2 group" 
+                        onMouseEnter={() => setHoverInsertIndex(0)}
+                        onMouseLeave={() => setHoverInsertIndex(null)}
+                      >
+                        <button 
+                          onClick={() => openAddTrackDialog(0)}
+                          className={`absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-spotify-green rounded-full flex items-center justify-center ${hoverInsertIndex === 0 ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 transition-opacity`}
+                        >
+                          <Plus className="h-4 w-4 text-white" />
+                        </button>
+                      </div>
+                    )}
+                    
+                    <TrackItem 
+                      key={track.id} 
+                      track={track} 
+                      index={index}
+                      playlistId={id}
+                      onReorder={handleReorderTrack}
+                      onRemove={handleRemoveTrack}
+                    />
+                    
+                    <div 
+                      className="relative h-2 group" 
+                      onMouseEnter={() => setHoverInsertIndex(index + 1)}
+                      onMouseLeave={() => setHoverInsertIndex(null)}
+                    >
+                      <button 
+                        onClick={() => openAddTrackDialog(index + 1)}
+                        className={`absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-spotify-green rounded-full flex items-center justify-center ${hoverInsertIndex === index + 1 ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 transition-opacity`}
+                      >
+                        <Plus className="h-4 w-4 text-white" />
+                      </button>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            ) : !tracksError ? (
+              <div className="rounded-md border p-8 text-center">
+                <p className="text-muted-foreground">
+                  No tracks found in this playlist.
+                </p>
+              </div>
+            ) : null}
+          </div>
           
           <div className="mt-6">
             <Dialog open={showAddTrackDialog} onOpenChange={setShowAddTrackDialog}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-light-green text-gray-800 hover:bg-opacity-90">
+                <Button 
+                  onClick={() => openAddTrackDialog(null)} 
+                  className="w-full bg-light-green text-gray-800 hover:bg-opacity-90"
+                >
                   <Plus className="h-4 w-4 mr-2" /> Add track to playlist
                 </Button>
               </DialogTrigger>
               <DialogContent className="w-full max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Add tracks to playlist</DialogTitle>
+                  <DialogTitle>
+                    {insertIndex !== null 
+                      ? `Insert track at position ${insertIndex + 1}` 
+                      : "Add tracks to playlist"}
+                  </DialogTitle>
                 </DialogHeader>
                 
                 <div className="flex mt-4 space-x-2">
