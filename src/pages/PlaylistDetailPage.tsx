@@ -228,6 +228,7 @@ const PlaylistDetailPage = () => {
     
     try {
       setIsUpdating(true);
+      
       await addTracksToPlaylist(token, id, [trackId]);
       
       const trackToAdd = [...searchResults, ...savedTracks].find(track => track.id === trackId);

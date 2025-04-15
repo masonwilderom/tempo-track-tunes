@@ -184,9 +184,10 @@ export const getUserPlaylists = async (token: string): Promise<SpotifyPlaylist[]
   }
 };
 
-// Function to get a single playlist with tracks
+// Function to get a single playlist with tracks, now with pagination support
 export const getPlaylist = async (token: string, playlistId: string): Promise<SpotifyPlaylist | null> => {
   try {
+    // First, get the playlist metadata
     const response = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}`, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -198,6 +199,42 @@ export const getPlaylist = async (token: string, playlistId: string): Promise<Sp
     }
     
     const playlist = await response.json();
+    const totalTracks = playlist.tracks.total;
+    
+    // Initialize tracks array with the first batch that comes with the playlist
+    let allTracks = [...playlist.tracks.items];
+    
+    // If there are more tracks than in the initial response, fetch the rest
+    if (totalTracks > playlist.tracks.items.length) {
+      const batchSize = 100; // Maximum allowed by Spotify API
+      
+      // Start from the next offset after the initial items
+      for (let offset = playlist.tracks.items.length; offset < totalTracks; offset += batchSize) {
+        console.log(`Fetching tracks batch with offset ${offset}`);
+        
+        const tracksResponse = await fetch(
+          `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks?offset=${offset}&limit=${batchSize}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+        
+        if (!tracksResponse.ok) {
+          console.error(`Error fetching additional tracks: ${tracksResponse.status}`);
+          break; // Continue with what we have so far
+        }
+        
+        const tracksData = await tracksResponse.json();
+        allTracks = [...allTracks, ...tracksData.items];
+        
+        // Add a small delay between requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // Map the complete track list to our format
     return {
       id: playlist.id,
       name: playlist.name,
@@ -208,8 +245,8 @@ export const getPlaylist = async (token: string, playlistId: string): Promise<Sp
         display_name: playlist.owner.display_name || playlist.owner.id
       },
       tracks: {
-        total: playlist.tracks.total,
-        items: playlist.tracks.items.map((item: any) => ({
+        total: totalTracks,
+        items: allTracks.map((item: any) => ({
           added_at: item.added_at,
           track: {
             id: item.track.id,
