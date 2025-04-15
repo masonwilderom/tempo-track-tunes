@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist, SpotifyTrackDetail } from '@/types';
-import { getPlaylist, getTracksWithFeatures } from '@/lib/spotify';
+import { getPlaylist, getTracksWithFeatures, reorderPlaylistTrack, removeTrackFromPlaylist } from '@/lib/spotify';
 import TrackItem from '@/components/TrackItem';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { toast } from '@/components/ui/use-toast';
 import { formatDuration } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 const PlaylistDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +19,7 @@ const PlaylistDetailPage = () => {
   const [comment, setComment] = useState('');
   const [tracks, setTracks] = useState<SpotifyTrackDetail[]>([]);
   const [tracksError, setTracksError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -98,6 +99,61 @@ const PlaylistDetailPage = () => {
     refetchPlaylist();
   };
 
+  const handleReorderTrack = async (startIndex: number, endIndex: number) => {
+    if (!token || !id || startIndex === endIndex) return;
+    
+    try {
+      setIsUpdating(true);
+      await reorderPlaylistTrack(token, id, startIndex, endIndex);
+      
+      // Update local state to reflect the change
+      const updatedTracks = [...tracks];
+      const [movedTrack] = updatedTracks.splice(startIndex, 1);
+      updatedTracks.splice(endIndex, 0, movedTrack);
+      setTracks(updatedTracks);
+      
+      toast({
+        title: 'Success',
+        description: 'Track order updated',
+      });
+    } catch (error) {
+      console.error('Error reordering track:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reorder track. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleRemoveTrack = async (trackId: string) => {
+    if (!token || !id) return;
+    
+    try {
+      setIsUpdating(true);
+      await removeTrackFromPlaylist(token, id, trackId);
+      
+      // Update local state
+      setTracks(tracks.filter(track => track.id !== trackId));
+      
+      toast({
+        title: 'Success',
+        description: 'Track removed from playlist',
+      });
+    } catch (error) {
+      console.error('Error removing track:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove track. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   // Calculate total duration
   const totalDuration = tracks.reduce((acc, track) => acc + track.duration_ms, 0);
 
@@ -118,7 +174,7 @@ const PlaylistDetailPage = () => {
           </AlertDescription>
         </Alert>
         <Button onClick={handleRetry} className="mt-2">
-          <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
+          <RefreshCw className="mr-2 h-4 w-4" /> Try Again
         </Button>
       </div>
     );
@@ -128,20 +184,34 @@ const PlaylistDetailPage = () => {
     <div className="container px-4 py-8">
       <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
         <div className="md:col-span-2">
+          {isUpdating && (
+            <div className="mb-4 flex items-center justify-center p-4 bg-muted rounded-md">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-spotify-green border-t-transparent mr-2"></div>
+              <p>Updating playlist...</p>
+            </div>
+          )}
+          
           {tracksError && (
             <div className="mb-4">
               <Alert variant="destructive">
                 <AlertDescription>{tracksError}</AlertDescription>
               </Alert>
               <Button onClick={handleRetry} className="mt-2">
-                <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
+                <RefreshCw className="mr-2 h-4 w-4" /> Try Again
               </Button>
             </div>
           )}
           
           {!tracksError && tracks.length > 0 ? (
-            tracks.map((track) => (
-              <TrackItem key={track.id} track={track} />
+            tracks.map((track, index) => (
+              <TrackItem 
+                key={track.id} 
+                track={track} 
+                index={index}
+                playlistId={id}
+                onReorder={handleReorderTrack}
+                onRemove={handleRemoveTrack}
+              />
             ))
           ) : !tracksError ? (
             <div className="rounded-md border p-8 text-center">
@@ -175,7 +245,7 @@ const PlaylistDetailPage = () => {
               <h1 className="text-2xl font-bold">{playlist.name}</h1>
               <p className="text-muted-foreground">{playlist.owner.display_name}</p>
               <p className="text-muted-foreground">
-                {playlist.tracks.total} tracks
+                {tracks.length} tracks
               </p>
               <p className="text-muted-foreground">
                 Duration: {formatDuration(totalDuration)}

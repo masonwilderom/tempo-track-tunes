@@ -1,13 +1,21 @@
 
 import React, { useState } from 'react';
-import { SpotifyTrackDetail } from '@/types';
+import { SpotifyTrackDetail, CuePoint } from '@/types';
+import { formatDuration } from '@/lib/utils';
+import { GripVertical, X } from 'lucide-react';
+import TrackCuePoints from './TrackCuePoints';
 
 interface TrackItemProps {
   track: SpotifyTrackDetail;
+  index?: number;
+  playlistId?: string;
+  onReorder?: (startIndex: number, endIndex: number) => void;
+  onRemove?: (trackId: string) => void;
 }
 
-const TrackItem = ({ track }: TrackItemProps) => {
+const TrackItem = ({ track, index, playlistId, onReorder, onRemove }: TrackItemProps) => {
   const [note, setNote] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
   
   // Format duration from milliseconds to MM:SS
   const formatDuration = (ms: number) => {
@@ -38,21 +46,52 @@ const TrackItem = ({ track }: TrackItemProps) => {
     return ""; // Default
   };
   
-  // Calculate track sections based on mock data
-  const trackSections = [
-    { name: 'Intro', time: '0:00' },
-    { name: 'Breakdown', time: '0:38' },
-    { name: 'Outro', time: '1:41' },
-  ];
-  
   const handleSaveNote = () => {
     console.log('Saving note for track:', track.id, note);
     // In a real app, this would save to Firebase
   };
   
+  // Only enable drag functionality if onReorder is provided
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!onReorder || index === undefined) return;
+    
+    e.dataTransfer.setData('text/plain', index.toString());
+    setIsDragging(true);
+  };
+  
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!onReorder || index === undefined) return;
+    e.preventDefault();
+  };
+  
+  const handleDrop = (e: React.DragEvent) => {
+    if (!onReorder || index === undefined) return;
+    
+    e.preventDefault();
+    const startIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    onReorder(startIndex, index);
+  };
+  
   return (
-    <div className="border-b p-4">
+    <div 
+      className={`border-b p-4 ${isDragging ? 'opacity-50' : ''} ${onReorder ? 'cursor-move' : ''}`}
+      draggable={!!onReorder}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div className="flex items-center">
+        {onReorder && (
+          <div className="mr-2 cursor-grab text-muted-foreground">
+            <GripVertical className="h-5 w-5" />
+          </div>
+        )}
+        
         <div className="mr-4 h-16 w-16 flex-shrink-0">
           <img 
             src={track.album.images[0]?.url || '/placeholder.svg'} 
@@ -63,26 +102,24 @@ const TrackItem = ({ track }: TrackItemProps) => {
         
         <div className="flex flex-1 justify-between">
           <div className="flex-1">
-            <h3 className="font-medium">{track.name}</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium">{track.name}</h3>
+              {onRemove && (
+                <button 
+                  onClick={() => onRemove(track.id)}
+                  className="ml-2 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <p className="text-sm">{track.album.name} {new Date(track.album.release_date).getFullYear()}</p>
             <p className="text-sm">{track.artists.map(a => a.name).join(', ')}</p>
             <p className="text-sm">{formatDuration(track.duration_ms)}</p>
           </div>
           
           <div className="mx-8 flex-1">
-            <ul>
-              {trackSections.map((section, i) => (
-                <li key={i} className="flex items-center text-sm">
-                  <span className={`mr-2 h-2 w-2 rounded-full ${i === 0 ? 'bg-red-500' : i === 1 ? 'bg-green-500' : 'bg-blue-500'}`}></span>
-                  <span className="mr-1">{section.name}</span>
-                  <span className="text-muted-foreground">{section.time}</span>
-                </li>
-              ))}
-              <li className="flex items-center text-sm">
-                <span className="mr-2 h-2 w-2 rounded-full bg-gray-500"></span>
-                <span>Add new cue</span>
-              </li>
-            </ul>
+            <TrackCuePoints trackId={track.id} duration={track.duration_ms} />
           </div>
           
           <div className="flex flex-col items-end justify-center">

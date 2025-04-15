@@ -1,16 +1,19 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchSpotify } from '@/lib/spotify';
+import { searchSpotify, getUserSavedTracks } from '@/lib/spotify';
 import { SpotifyTrackDetail } from '@/types';
 import TrackItem from '@/components/TrackItem';
-import { Search, X } from 'lucide-react';
+import { Search, X, RefreshCw } from 'lucide-react';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { toast } from '@/components/ui/use-toast';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LibraryPage = () => {
   const navigate = useNavigate();
-  const { token, isAuthenticated, isLoading: authLoading } = useSpotifyAuth();
+  const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SpotifyTrackDetail[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -22,6 +25,21 @@ const LibraryPage = () => {
       navigate('/login');
     }
   }, [isAuthenticated, authLoading, navigate]);
+
+  // Fetch user's saved tracks
+  const { 
+    data: savedTracks, 
+    isLoading: tracksLoading, 
+    error: tracksError, 
+    refetch: refetchTracks 
+  } = useQuery({
+    queryKey: ['userSavedTracks', token],
+    queryFn: async () => {
+      if (!token) return [];
+      return getUserSavedTracks(token);
+    },
+    enabled: !!token && isAuthenticated
+  });
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +90,12 @@ const LibraryPage = () => {
     setSearchResults([]);
   };
 
+  const handleRetry = async () => {
+    // Try to refresh the token first
+    await refreshTokenIfNeeded();
+    refetchTracks();
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center p-12">
@@ -83,7 +107,7 @@ const LibraryPage = () => {
   return (
     <div className="container px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Library</h1>
+        <h1 className="text-3xl font-bold">Your Library</h1>
         
         <div className="relative">
           <button
@@ -153,11 +177,33 @@ const LibraryPage = () => {
             <TrackItem key={track.id} track={track} />
           ))}
         </div>
+      ) : tracksLoading ? (
+        <div className="flex justify-center p-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
+        </div>
+      ) : tracksError ? (
+        <div className="my-6">
+          <Alert variant="destructive">
+            <AlertDescription>
+              Failed to load your saved tracks. Please try again.
+            </AlertDescription>
+          </Alert>
+          <Button onClick={handleRetry} className="mt-4">
+            <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+          </Button>
+        </div>
+      ) : savedTracks && savedTracks.length > 0 ? (
+        <div>
+          <h2 className="mb-4 text-xl font-semibold">Your Saved Tracks</h2>
+          {savedTracks.map((track) => (
+            <TrackItem key={track.id} track={track} />
+          ))}
+        </div>
       ) : (
         <div className="rounded-md border p-8 text-center">
-          <p className="mb-4 text-lg font-medium">Search for music</p>
+          <p className="mb-4 text-lg font-medium">No saved tracks found</p>
           <p className="text-muted-foreground">
-            Search for tracks, albums, or artists using the search button above.
+            Save tracks in Spotify or search for music using the search button above.
           </p>
         </div>
       )}

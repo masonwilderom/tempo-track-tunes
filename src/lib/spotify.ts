@@ -14,6 +14,7 @@ export const getSpotifyLoginUrl = async () => {
   const scopes = [
     "user-read-private",
     "user-read-email",
+    "user-library-read",
     "playlist-read-private",
     "playlist-read-collaborative",
     "playlist-modify-public",
@@ -254,6 +255,26 @@ async function getAudioFeatures(token: string, trackId: string) {
   }
 }
 
+// Function to fetch track audio analysis from Spotify
+export const getAudioAnalysis = async (token: string, trackId: string) => {
+  try {
+    const response = await fetch(`${SPOTIFY_API_BASE}/audio-analysis/${trackId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching audio analysis: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Failed to fetch audio analysis for track ${trackId}:`, error);
+    return null;
+  }
+};
+
 // Function to fetch track details including audio features
 export const getTracksWithFeatures = async (token: string, trackIds: string[]): Promise<SpotifyTrackDetail[]> => {
   if (!trackIds || trackIds.length === 0) return [];
@@ -276,8 +297,8 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
     // Split the requests if needed
     let allFeatures = [];
     
-    // Process in chunks of 50 to be safe
-    const chunkSize = 50;
+    // Process in chunks of 20 to avoid API limits
+    const chunkSize = 20;
     for (let i = 0; i < trackIds.length; i += chunkSize) {
       const chunk = trackIds.slice(i, i + chunkSize);
       
@@ -334,6 +355,150 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
     });
   } catch (error) {
     console.error(`Failed to fetch tracks with features:`, error);
+    throw error;
+  }
+};
+
+// Function to fetch user's saved tracks
+export const getUserSavedTracks = async (token: string, limit = 50, offset = 0): Promise<SpotifyTrackDetail[]> => {
+  try {
+    const response = await fetch(`${SPOTIFY_API_BASE}/me/tracks?limit=${limit}&offset=${offset}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching saved tracks: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data || !data.items || !Array.isArray(data.items)) {
+      console.error("Invalid saved tracks data structure:", data);
+      return [];
+    }
+    
+    // Extract track IDs to fetch audio features
+    const trackIds = data.items.map((item: any) => item.track?.id).filter(Boolean);
+    
+    if (trackIds.length === 0) {
+      return [];
+    }
+    
+    // Fetch audio features for these tracks
+    let allFeatures = [];
+    
+    // Process in chunks of 20 to avoid API limits
+    const chunkSize = 20;
+    for (let i = 0; i < trackIds.length; i += chunkSize) {
+      const chunk = trackIds.slice(i, i + chunkSize);
+      
+      try {
+        const featuresResponse = await fetch(`${SPOTIFY_API_BASE}/audio-features?ids=${chunk.join(',')}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        if (!featuresResponse.ok) {
+          console.error(`Error fetching audio features batch: ${featuresResponse.status}`);
+          // Continue with partial data
+          continue;
+        }
+        
+        const featuresData = await featuresResponse.json();
+        if (featuresData && featuresData.audio_features) {
+          allFeatures = [...allFeatures, ...featuresData.audio_features];
+        }
+      } catch (error) {
+        console.error(`Error processing audio features batch: ${error}`);
+        // Continue with partial data
+      }
+    }
+    
+    // Map the tracks with their audio features
+    return data.items.map((item: any) => {
+      const track = item.track;
+      // Find matching audio feature by track ID
+      const features = allFeatures.find((f: any) => f && f.id === track.id);
+      
+      return {
+        id: track.id,
+        name: track.name,
+        duration_ms: track.duration_ms,
+        album: {
+          id: track.album.id,
+          name: track.album.name,
+          images: track.album.images || [],
+          release_date: track.album.release_date
+        },
+        artists: track.artists.map((artist: any) => ({
+          id: artist.id,
+          name: artist.name
+        })),
+        audio_features: features ? {
+          tempo: features.tempo,
+          key: features.key,
+          mode: features.mode,
+          time_signature: features.time_signature,
+          duration_ms: features.duration_ms
+        } : undefined
+      };
+    });
+  } catch (error) {
+    console.error("Failed to fetch saved tracks:", error);
+    throw error;
+  }
+};
+
+// Function to update playlist track order
+export const reorderPlaylistTrack = async (token: string, playlistId: string, rangeStart: number, insertBefore: number) => {
+  try {
+    const response = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        range_start: rangeStart,
+        insert_before: insertBefore
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error reordering playlist track: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Failed to reorder playlist track:`, error);
+    throw error;
+  }
+};
+
+// Function to remove track from playlist
+export const removeTrackFromPlaylist = async (token: string, playlistId: string, trackUri: string) => {
+  try {
+    const response = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tracks: [{ uri: `spotify:track:${trackUri}` }]
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error removing track from playlist: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Failed to remove track from playlist:`, error);
     throw error;
   }
 };

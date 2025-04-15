@@ -50,6 +50,14 @@ export interface SpotifyPlaylist {
   };
 }
 
+// For local state management
+export interface CuePoint {
+  id: string;
+  name: string;
+  timeMs: number;
+  color: string;
+}
+
 // Firebase data types
 export interface TrackNote {
   trackId: string;
