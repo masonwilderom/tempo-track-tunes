@@ -288,17 +288,24 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
     });
     
     if (!tracksResponse.ok) {
-      throw new Error(`Error fetching tracks: ${tracksResponse.status}`);
+      const errorData = await tracksResponse.json().catch(() => ({}));
+      console.error("Error response from Spotify tracks API:", errorData);
+      throw new Error(`Error fetching tracks: ${tracksResponse.status} - ${JSON.stringify(errorData)}`);
     }
     
     const tracksData = await tracksResponse.json();
+    
+    if (!tracksData || !tracksData.tracks) {
+      console.error("Invalid tracks data structure:", tracksData);
+      return [];
+    }
     
     // Spotify API has a limit of 100 IDs per request for audio features
     // Split the requests if needed
     let allFeatures = [];
     
-    // Process in chunks of 20 to avoid API limits
-    const chunkSize = 20;
+    // Process in chunks of 5 to avoid API rate limits and 403 errors
+    const chunkSize = 5;
     for (let i = 0; i < trackIds.length; i += chunkSize) {
       const chunk = trackIds.slice(i, i + chunkSize);
       
@@ -310,7 +317,7 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
         });
         
         if (!featuresResponse.ok) {
-          console.error(`Error fetching audio features batch: ${featuresResponse.status}`);
+          console.error(`Error fetching audio features batch: ${featuresResponse.status} ${chunk.join(',')}`);
           // Continue with partial data
           continue;
         }
@@ -323,10 +330,17 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
         console.error(`Error processing audio features batch: ${error}`);
         // Continue with partial data
       }
+      
+      // Add a short delay between requests to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
+    console.log(`Successfully fetched audio features for ${allFeatures.length} out of ${trackIds.length} tracks`);
+    
     // Combine track info with audio features
-    return tracksData.tracks.map((track: any, index: number) => {
+    return tracksData.tracks.map((track: any) => {
+      if (!track) return null;
+      
       // Find matching audio feature by track ID
       const features = allFeatures.find((f: any) => f && f.id === track.id);
       
@@ -352,7 +366,7 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
           duration_ms: features.duration_ms
         } : undefined
       };
-    });
+    }).filter(Boolean);
   } catch (error) {
     console.error(`Failed to fetch tracks with features:`, error);
     throw error;
