@@ -14,39 +14,14 @@ interface TrackItemProps {
   onAddToPlaylist?: (trackId: string) => void;
 }
 
-// Get color for key (Camelot system)
+// Get color for key (simplified for the Camelot system)
 const getKeyColor = (key: string | undefined) => {
   if (!key) return "";
   
-  // Map Camelot keys to specific colors
-  const keyColorMap: Record<string, string> = {
-    '1A': 'text-amber-500',     // Ab minor
-    '2A': 'text-yellow-500',    // Eb minor
-    '3A': 'text-lime-500',      // Bb minor
-    '4A': 'text-green-500',     // F minor
-    '5A': 'text-emerald-500',   // C minor
-    '6A': 'text-teal-500',      // G minor
-    '7A': 'text-cyan-500',      // D minor
-    '8A': 'text-sky-500',       // A minor
-    '9A': 'text-blue-500',      // E minor
-    '10A': 'text-indigo-500',   // B minor
-    '11A': 'text-violet-500',   // F# minor
-    '12A': 'text-purple-500',   // C# minor
-    '1B': 'text-red-500',       // B major
-    '2B': 'text-rose-500',      // F# major
-    '3B': 'text-pink-500',      // Db major
-    '4B': 'text-fuchsia-500',   // Ab major
-    '5B': 'text-purple-500',    // Eb major
-    '6B': 'text-violet-500',    // Bb major
-    '7B': 'text-indigo-500',    // F major
-    '8B': 'text-blue-500',      // C major
-    '9B': 'text-sky-500',       // G major
-    '10B': 'text-teal-500',     // D major
-    '11B': 'text-emerald-500',  // A major
-    '12B': 'text-lime-500',     // E major
-  };
-  
-  return keyColorMap[key] || "";
+  // This is a simplified version - you might want to extend this
+  if (key.includes('8A')) return "text-key-8a"; // Orange
+  if (key.includes('9B')) return "text-key-9b"; // Yellow
+  return ""; // Default
 };
 
 const TrackItem = ({ track, index, playlistId, onReorder, onRemove, onAddToPlaylist }: TrackItemProps) => {
