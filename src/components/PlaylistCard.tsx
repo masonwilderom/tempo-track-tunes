@@ -29,9 +29,6 @@ const PlaylistCard = ({ playlist }: PlaylistCardProps) => {
           <p className="text-sm text-muted-foreground">
             Last updated {lastUpdated}
           </p>
-          <p className="text-sm text-muted-foreground">
-            Duration: unknown
-          </p>
         </div>
       </Link>
       <div className="mt-2">
