@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist } from '@/types';
@@ -7,11 +8,22 @@ import Notification from '@/components/ui/Notification';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from '@/components/ui/use-toast';
+import { 
+  DropdownMenu, 
+  DropdownMenuTrigger, 
+  DropdownMenuContent, 
+  DropdownMenuItem 
+} from "@/components/ui/dropdown-menu";
+import { Button } from '@/components/ui/button';
+import { ArrowUpDown } from 'lucide-react';
+
+type SortOption = 'name-asc' | 'name-desc' | 'tracks-asc' | 'tracks-desc';
 
 const PlaylistsPage = () => {
   const navigate = useNavigate();
   const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
   const [showNotification, setShowNotification] = useState(true);
+  const [sortOption, setSortOption] = useState<SortOption>('name-asc');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -79,6 +91,26 @@ const PlaylistsPage = () => {
     }
   }, [isError, error, refreshTokenIfNeeded, refetch, navigate]);
 
+  // Sort playlists based on the selected option
+  const getSortedPlaylists = () => {
+    if (!playlists) return [];
+    
+    const sortedPlaylists = [...playlists];
+    
+    switch (sortOption) {
+      case 'name-asc':
+        return sortedPlaylists.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name-desc':
+        return sortedPlaylists.sort((a, b) => b.name.localeCompare(a.name));
+      case 'tracks-asc':
+        return sortedPlaylists.sort((a, b) => a.tracks.total - b.tracks.total);
+      case 'tracks-desc':
+        return sortedPlaylists.sort((a, b) => b.tracks.total - a.tracks.total);
+      default:
+        return sortedPlaylists;
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center p-12">
@@ -96,46 +128,60 @@ const PlaylistsPage = () => {
         />
       )}
 
-      <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
-        <div>
-          <h2 className="mb-6 text-3xl font-bold text-center md:text-left">Your Playlists</h2>
-          
-          {isLoading ? (
-            <div className="flex justify-center p-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
-            </div>
-          ) : error ? (
-            <div className="rounded-md bg-red-50 p-4 text-red-800">
-              <p>Failed to load playlists. Please try again later.</p>
-              <button 
-                onClick={() => refetch()} 
-                className="mt-2 rounded bg-red-100 px-2 py-1 text-sm hover:bg-red-200"
-              >
-                Try Again
-              </button>
-            </div>
-          ) : playlists && playlists.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              {playlists.map((playlist) => (
-                <PlaylistCard key={playlist.id} playlist={playlist} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border p-8 text-center">
-              <p className="text-muted-foreground">
-                No playlists found. Create a playlist in Spotify to see it here.
-              </p>
-            </div>
-          )}
-        </div>
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-3xl font-bold">Your Playlists</h2>
         
-        <div>
-          <h2 className="mb-6 text-3xl font-bold text-center md:text-left">Your Tracks</h2>
-          <div className="rounded-md border p-4 text-center">
-            <p className="text-muted-foreground">Select a playlist to view tracks</p>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <ArrowUpDown className="mr-2 h-4 w-4" />
+              Sort by
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setSortOption('name-asc')}>
+              Name (A-Z)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortOption('name-desc')}>
+              Name (Z-A)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortOption('tracks-asc')}>
+              Tracks (Fewest first)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortOption('tracks-desc')}>
+              Tracks (Most first)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      
+      {isLoading ? (
+        <div className="flex justify-center p-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
+        </div>
+      ) : error ? (
+        <div className="rounded-md bg-red-50 p-4 text-red-800">
+          <p>Failed to load playlists. Please try again later.</p>
+          <button 
+            onClick={() => refetch()} 
+            className="mt-2 rounded bg-red-100 px-2 py-1 text-sm hover:bg-red-200"
+          >
+            Try Again
+          </button>
+        </div>
+      ) : playlists && playlists.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {getSortedPlaylists().map((playlist) => (
+            <PlaylistCard key={playlist.id} playlist={playlist} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-md border p-8 text-center">
+          <p className="text-muted-foreground">
+            No playlists found. Create a playlist in Spotify to see it here.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

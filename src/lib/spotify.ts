@@ -1,3 +1,4 @@
+
 import { SpotifyPlaylist, SpotifyTrackDetail, SpotifyUser } from "@/types";
 import { generateCodeVerifier, generateRandomString, generateCodeChallenge, storePkceValues } from "./pkce";
 
@@ -310,57 +311,74 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
   if (!trackIds || trackIds.length === 0) return [];
   
   try {
-    // Get track info
-    const tracksResponse = await fetch(`${SPOTIFY_API_BASE}/tracks?ids=${trackIds.join(',')}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    // Spotify API has a limit of 50 track IDs per request
+    // Split track IDs into chunks of 50
+    const allTracks: SpotifyTrackDetail[] = [];
     
-    if (!tracksResponse.ok) {
-      const errorData = await tracksResponse.json().catch(() => ({}));
-      console.error("Error response from Spotify tracks API:", errorData);
-      throw new Error(`Error fetching tracks: ${tracksResponse.status} - ${JSON.stringify(errorData)}`);
-    }
-    
-    const tracksData = await tracksResponse.json();
-    
-    if (!tracksData || !tracksData.tracks) {
-      console.error("Invalid tracks data structure:", tracksData);
-      return [];
-    }
-    
-    // Combine track info with generated audio features
-    return tracksData.tracks.map((track: any) => {
-      if (!track) return null;
+    // Process trackIds in chunks of 50
+    for (let i = 0; i < trackIds.length; i += 50) {
+      const chunk = trackIds.slice(i, i + 50);
+      const chunkStr = chunk.join(',');
       
-      // Generate random audio features based on track ID
-      const tempo = getRandomTempoFromId(track.id);
-      const key = getRandomKeyFromId(track.id);
+      console.log(`Fetching details for tracks ${i+1}-${i+chunk.length} of ${trackIds.length}`);
       
-      return {
-        id: track.id,
-        name: track.name,
-        duration_ms: track.duration_ms,
-        album: {
-          id: track.album.id,
-          name: track.album.name,
-          images: track.album.images,
-          release_date: track.album.release_date
-        },
-        artists: track.artists.map((artist: any) => ({
-          id: artist.id,
-          name: artist.name
-        })),
-        audio_features: {
-          tempo: tempo,
-          key: key,
-          mode: 1,
-          time_signature: 4,
-          duration_ms: track.duration_ms
+      // Get track info for this chunk
+      const tracksResponse = await fetch(`${SPOTIFY_API_BASE}/tracks?ids=${chunkStr}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      };
-    }).filter(Boolean);
+      });
+      
+      if (!tracksResponse.ok) {
+        const errorData = await tracksResponse.json().catch(() => ({}));
+        console.error(`Error response from Spotify tracks API for chunk ${i/50 + 1}:`, errorData);
+        // Continue to the next chunk instead of failing completely
+        continue;
+      }
+      
+      const tracksData = await tracksResponse.json();
+      
+      if (!tracksData || !tracksData.tracks) {
+        console.error(`Invalid tracks data structure for chunk ${i/50 + 1}:`, tracksData);
+        continue;
+      }
+      
+      // Add tracks from this chunk to our results
+      const chunkTracks = tracksData.tracks
+        .filter(Boolean)
+        .map((track: any) => {
+          // Generate random audio features based on track ID
+          const tempo = getRandomTempoFromId(track.id);
+          const key = getRandomKeyFromId(track.id);
+          
+          return {
+            id: track.id,
+            name: track.name,
+            duration_ms: track.duration_ms,
+            album: {
+              id: track.album.id,
+              name: track.album.name,
+              images: track.album.images,
+              release_date: track.album.release_date
+            },
+            artists: track.artists.map((artist: any) => ({
+              id: artist.id,
+              name: artist.name
+            })),
+            audio_features: {
+              tempo: tempo,
+              key: key,
+              mode: 1,
+              time_signature: 4,
+              duration_ms: track.duration_ms
+            }
+          };
+        });
+      
+      allTracks.push(...chunkTracks);
+    }
+    
+    return allTracks;
   } catch (error) {
     console.error(`Failed to fetch tracks with features:`, error);
     throw error;

@@ -11,7 +11,17 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { X, RefreshCw, Search, Plus } from 'lucide-react';
+import { X, RefreshCw, Search, Plus, ArrowUpDown } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
+const ITEMS_PER_PAGE = 50;
 
 const PlaylistDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +40,8 @@ const PlaylistDetailPage = () => {
   const [isLoadingSavedTracks, setIsLoadingSavedTracks] = useState(false);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [hoverInsertIndex, setHoverInsertIndex] = useState<number | null>(null);
+  const [currentSavedTracksPage, setCurrentSavedTracksPage] = useState(1);
+  const [totalSavedTracks, setTotalSavedTracks] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -195,17 +207,20 @@ const PlaylistDetailPage = () => {
     }
   };
 
-  const loadSavedTracks = async () => {
+  const loadSavedTracks = async (page = 1) => {
     if (!token) return;
     
     try {
       setIsLoadingSavedTracks(true);
       setShowSavedTracks(true);
       setSearchResults([]);
-      console.log("Loading saved tracks for add dialog");
-      const tracksResponse = await getUserSavedTracks(token);
+      console.log(`Loading saved tracks for add dialog, page ${page}`);
+      const offset = (page - 1) * ITEMS_PER_PAGE;
+      const tracksResponse = await getUserSavedTracks(token, ITEMS_PER_PAGE, offset);
       console.log("Saved tracks loaded:", tracksResponse.items.length);
       setSavedTracks(tracksResponse.items);
+      setTotalSavedTracks(tracksResponse.total);
+      setCurrentSavedTracksPage(page);
     } catch (error) {
       console.error('Error loading saved tracks:', error);
       toast({
@@ -262,6 +277,7 @@ const PlaylistDetailPage = () => {
   };
 
   const totalDuration = tracks.reduce((acc, track) => acc + track.duration_ms, 0);
+  const totalSavedTracksPages = Math.ceil(totalSavedTracks / ITEMS_PER_PAGE);
 
   if (authLoading || playlistLoading) {
     return (
@@ -383,7 +399,7 @@ const PlaylistDetailPage = () => {
                 <div className="flex mt-4 space-x-2">
                   <Button 
                     variant={showSavedTracks ? "default" : "outline"} 
-                    onClick={loadSavedTracks}
+                    onClick={() => loadSavedTracks(1)}
                   >
                     Your saved tracks
                   </Button>
@@ -419,29 +435,79 @@ const PlaylistDetailPage = () => {
                     </div>
                   ) : showSavedTracks ? (
                     savedTracks.length > 0 ? (
-                      <div className="space-y-2">
-                        {savedTracks.map((track) => (
-                          <div key={track.id} className="flex items-center justify-between border-b py-2">
-                            <div className="flex items-center">
-                              <img 
-                                src={track.album.images[0]?.url || '/placeholder.svg'} 
-                                alt={track.name} 
-                                className="h-10 w-10 mr-3"
-                              />
-                              <div>
-                                <p className="font-medium">{track.name}</p>
-                                <p className="text-sm text-muted-foreground">{track.artists.map(a => a.name).join(', ')}</p>
+                      <div>
+                        <div className="space-y-2">
+                          {savedTracks.map((track) => (
+                            <div key={track.id} className="flex items-center justify-between border-b py-2">
+                              <div className="flex items-center">
+                                <img 
+                                  src={track.album.images[0]?.url || '/placeholder.svg'} 
+                                  alt={track.name} 
+                                  className="h-10 w-10 mr-3"
+                                />
+                                <div>
+                                  <p className="font-medium">{track.name}</p>
+                                  <p className="text-sm text-muted-foreground">{track.artists.map(a => a.name).join(', ')}</p>
+                                </div>
                               </div>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleAddTrack(track.id)}
+                                disabled={tracks.some(t => t.id === track.id)}
+                              >
+                                {tracks.some(t => t.id === track.id) ? "Added" : "Add"}
+                              </Button>
                             </div>
-                            <Button 
-                              size="sm" 
-                              onClick={() => handleAddTrack(track.id)}
-                              disabled={tracks.some(t => t.id === track.id)}
-                            >
-                              {tracks.some(t => t.id === track.id) ? "Added" : "Add"}
-                            </Button>
+                          ))}
+                        </div>
+
+                        {totalSavedTracksPages > 1 && (
+                          <div className="mt-4">
+                            <Pagination>
+                              <PaginationContent>
+                                {currentSavedTracksPage > 1 && (
+                                  <PaginationItem>
+                                    <PaginationPrevious 
+                                      onClick={() => loadSavedTracks(currentSavedTracksPage - 1)}
+                                    />
+                                  </PaginationItem>
+                                )}
+                                
+                                {Array.from({ length: Math.min(5, totalSavedTracksPages) }, (_, i) => {
+                                  let pageToShow;
+                                  if (totalSavedTracksPages <= 5) {
+                                    pageToShow = i + 1;
+                                  } else if (currentSavedTracksPage <= 3) {
+                                    pageToShow = i + 1;
+                                  } else if (currentSavedTracksPage >= totalSavedTracksPages - 2) {
+                                    pageToShow = totalSavedTracksPages - 4 + i;
+                                  } else {
+                                    pageToShow = currentSavedTracksPage - 2 + i;
+                                  }
+                                  
+                                  return (
+                                    <PaginationItem key={pageToShow}>
+                                      <PaginationLink
+                                        isActive={currentSavedTracksPage === pageToShow}
+                                        onClick={() => loadSavedTracks(pageToShow)}
+                                      >
+                                        {pageToShow}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  );
+                                })}
+                                
+                                {currentSavedTracksPage < totalSavedTracksPages && (
+                                  <PaginationItem>
+                                    <PaginationNext 
+                                      onClick={() => loadSavedTracks(currentSavedTracksPage + 1)}
+                                    />
+                                  </PaginationItem>
+                                )}
+                              </PaginationContent>
+                            </Pagination>
                           </div>
-                        ))}
+                        )}
                       </div>
                     ) : (
                       <p className="text-center py-8 text-muted-foreground">No saved tracks found.</p>

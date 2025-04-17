@@ -1,10 +1,10 @@
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { searchSpotify, getUserSavedTracks, getUserPlaylists, addTracksToPlaylist } from '@/lib/spotify';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { getUserSavedTracks, addTracksToPlaylist } from '@/lib/spotify';
 import { SpotifyTrackDetail, SpotifyPlaylist } from '@/types';
 import TrackItem from '@/components/TrackItem';
-import { X, RefreshCw, Plus } from 'lucide-react';
+import { RefreshCw, Plus } from 'lucide-react';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { toast } from '@/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
@@ -24,9 +24,8 @@ const ITEMS_PER_PAGE = 50;
 
 const LibraryPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
-  const [searchResults, setSearchResults] = useState<SpotifyTrackDetail[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,6 +37,20 @@ const LibraryPage = () => {
       navigate('/login');
     }
   }, [isAuthenticated, authLoading, navigate]);
+
+  // Check for search term from navigation
+  useEffect(() => {
+    const searchTerm = localStorage.getItem('spotify_search_term');
+    if (searchTerm) {
+      // Clear the stored search term
+      localStorage.removeItem('spotify_search_term');
+      // Here we would handle the search, but this is currently not implemented
+      toast({
+        title: 'Search',
+        description: `Searching for "${searchTerm}" is not implemented yet.`,
+      });
+    }
+  }, [location]);
 
   // Fetch user's saved tracks with pagination
   const { 
@@ -76,10 +89,6 @@ const LibraryPage = () => {
     },
     enabled: !!token && isAuthenticated && showPlaylistDialog
   });
-
-  const clearSearch = () => {
-    setSearchResults([]);
-  };
 
   const handleRetry = async () => {
     // Try to refresh the token first
@@ -130,33 +139,7 @@ const LibraryPage = () => {
         <h1 className="text-3xl font-bold">Your Library</h1>
       </div>
       
-      {searchResults.length > 0 && (
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Search Results</h2>
-          <button 
-            onClick={clearSearch}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Clear results
-          </button>
-        </div>
-      )}
-      
-      {isSearching ? (
-        <div className="flex justify-center p-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
-        </div>
-      ) : searchResults.length > 0 ? (
-        <div>
-          {searchResults.map((track) => (
-            <TrackItem 
-              key={track.id} 
-              track={track} 
-              onAddToPlaylist={() => handleAddToPlaylist(track.id)}
-            />
-          ))}
-        </div>
-      ) : tracksLoading ? (
+      {tracksLoading ? (
         <div className="flex justify-center p-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
         </div>
