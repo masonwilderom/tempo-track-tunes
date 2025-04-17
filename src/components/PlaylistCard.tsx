@@ -17,11 +17,11 @@ const PlaylistCard = ({ playlist }: PlaylistCardProps) => {
   return (
     <div className="w-full max-w-[250px]">
       <Link to={`/playlists/${playlist.id}`} className="block">
-        <div className="mb-2 overflow-hidden rounded-md">
+        <div className="mb-2 aspect-square overflow-hidden rounded-md">
           <img 
             src={playlist.images[0]?.url || '/placeholder.svg'} 
             alt={playlist.name}
-            className="h-[200px] w-full object-cover transition-transform hover:scale-105"
+            className="h-full w-full object-cover transition-transform hover:scale-105"
           />
         </div>
         <div className="text-left">

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist } from '@/types';
@@ -17,22 +16,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { ArrowUpDown } from 'lucide-react';
 
-type SortOption = 'name-asc' | 'name-desc' | 'tracks-asc' | 'tracks-desc';
+type SortOption = 'default' | 'name-asc' | 'name-desc' | 'tracks-asc' | 'tracks-desc';
 
 const PlaylistsPage = () => {
   const navigate = useNavigate();
   const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
   const [showNotification, setShowNotification] = useState(true);
-  const [sortOption, setSortOption] = useState<SortOption>('name-asc');
+  const [sortOption, setSortOption] = useState<SortOption>('default');
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  // Fetch playlists using React Query
   const { data: playlists, isLoading, error, isError, refetch } = useQuery({
     queryKey: ['playlists', token],
     queryFn: async () => {
@@ -43,7 +40,6 @@ const PlaylistsPage = () => {
       
       try {
         console.log("Fetching playlists with token:", token.substring(0, 10) + "...");
-        // Try to refresh token before fetching playlists
         const needsRefresh = await refreshTokenIfNeeded();
         const currentToken = needsRefresh ? localStorage.getItem('spotify_token') : token;
         
@@ -62,12 +58,10 @@ const PlaylistsPage = () => {
     retryDelay: 2000
   });
 
-  // Handle error from the query
   useEffect(() => {
     if (isError && error) {
       console.error('Error fetching playlists:', error);
       
-      // Check if it's an auth error and refresh token
       if (error instanceof Error && error.message.includes('401')) {
         refreshTokenIfNeeded().then(refreshed => {
           if (refreshed) {
@@ -91,7 +85,6 @@ const PlaylistsPage = () => {
     }
   }, [isError, error, refreshTokenIfNeeded, refetch, navigate]);
 
-  // Sort playlists based on the selected option
   const getSortedPlaylists = () => {
     if (!playlists) return [];
     
@@ -106,6 +99,7 @@ const PlaylistsPage = () => {
         return sortedPlaylists.sort((a, b) => a.tracks.total - b.tracks.total);
       case 'tracks-desc':
         return sortedPlaylists.sort((a, b) => b.tracks.total - a.tracks.total);
+      case 'default':
       default:
         return sortedPlaylists;
     }
@@ -139,6 +133,9 @@ const PlaylistsPage = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setSortOption('default')}>
+              Default Order
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSortOption('name-asc')}>
               Name (A-Z)
             </DropdownMenuItem>
