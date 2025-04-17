@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getUserSavedTracks, addTracksToPlaylist } from '@/lib/spotify';
+import { getUserSavedTracks, addTracksToPlaylist, getUserPlaylists } from '@/lib/spotify';
 import { SpotifyTrackDetail, SpotifyPlaylist } from '@/types';
 import TrackItem from '@/components/TrackItem';
 import { RefreshCw, Plus } from 'lucide-react';
