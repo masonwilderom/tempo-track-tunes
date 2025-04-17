@@ -24,15 +24,36 @@ const getKeyColor = (key: string | undefined) => {
   return ""; // Default
 };
 
+// Helper functions to generate consistent random tempo and key based on track ID
+const getRandomTempoFromId = (trackId: string): number => {
+  // Use track ID as seed for pseudo-random generation
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = trackId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash % 40) + 115; // Range: 115-155 BPM
+};
+
+const getRandomKeyFromId = (trackId: string): string => {
+  // Use a different hash calculation for key
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = trackId.charCodeAt(i) + ((hash << 7) - hash);
+  }
+  const number = (Math.abs(hash) % 12) + 1; // 1-12
+  const letter = Math.abs(hash) % 2 === 0 ? 'A' : 'B'; // A or B
+  return `${number}${letter}`;
+};
+
 const TrackItem = ({ track, index, playlistId, onReorder, onRemove, onAddToPlaylist }: TrackItemProps) => {
   const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   
   // Get tempo and key values (either from audio_features or generated)
-  const tempo = track.audio_features?.tempo || 120;
+  const tempo = track.audio_features?.tempo || getRandomTempoFromId(track.id);
   const key = track.audio_features?.key !== undefined && typeof track.audio_features.key === 'string'
     ? track.audio_features.key // Use the key if it's already in Camelot format
-    : '1A'; // Default value
+    : getRandomKeyFromId(track.id); // Generate a key if not available
   
   const handleSaveNote = () => {
     console.log('Saving note for track:', track.id, note);

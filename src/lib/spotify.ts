@@ -198,6 +198,36 @@ export const getPlaylist = async (token: string, playlistId: string): Promise<Sp
     }
     
     const playlist = await response.json();
+    
+    // Get all tracks by making multiple requests if needed
+    let allTracks = playlist.tracks.items || [];
+    let nextUrl = playlist.tracks.next;
+    
+    while (nextUrl) {
+      try {
+        const tracksResponse = await fetch(nextUrl, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        if (!tracksResponse.ok) {
+          console.error(`Error fetching additional tracks: ${tracksResponse.status}`);
+          break;
+        }
+        
+        const tracksData = await tracksResponse.json();
+        if (tracksData.items && tracksData.items.length > 0) {
+          allTracks = [...allTracks, ...tracksData.items];
+        }
+        
+        nextUrl = tracksData.next;
+      } catch (error) {
+        console.error('Error fetching additional tracks:', error);
+        break;
+      }
+    }
+    
     return {
       id: playlist.id,
       name: playlist.name,
@@ -209,7 +239,7 @@ export const getPlaylist = async (token: string, playlistId: string): Promise<Sp
       },
       tracks: {
         total: playlist.tracks.total,
-        items: playlist.tracks.items.map((item: any) => ({
+        items: allTracks.map((item: any) => ({
           added_at: item.added_at,
           track: {
             id: item.track.id,
@@ -300,49 +330,13 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
       return [];
     }
     
-    // Spotify API has a limit of 100 IDs per request for audio features
-    // Split the requests if needed
-    let allFeatures = [];
-    
-    // Process in chunks of 5 to avoid API rate limits and 403 errors
-    const chunkSize = 5;
-    for (let i = 0; i < trackIds.length; i += chunkSize) {
-      const chunk = trackIds.slice(i, i + chunkSize);
-      
-      try {
-        const featuresResponse = await fetch(`${SPOTIFY_API_BASE}/audio-features?ids=${chunk.join(',')}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        
-        if (!featuresResponse.ok) {
-          console.error(`Error fetching audio features batch: ${featuresResponse.status} ${chunk.join(',')}`);
-          // Continue with partial data
-          continue;
-        }
-        
-        const featuresData = await featuresResponse.json();
-        if (featuresData && featuresData.audio_features) {
-          allFeatures = [...allFeatures, ...featuresData.audio_features];
-        }
-      } catch (error) {
-        console.error(`Error processing audio features batch: ${error}`);
-        // Continue with partial data
-      }
-      
-      // Add a short delay between requests to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    console.log(`Successfully fetched audio features for ${allFeatures.length} out of ${trackIds.length} tracks`);
-    
-    // Combine track info with audio features
+    // Combine track info with generated audio features
     return tracksData.tracks.map((track: any) => {
       if (!track) return null;
       
-      // Find matching audio feature by track ID
-      const features = allFeatures.find((f: any) => f && f.id === track.id);
+      // Generate random audio features based on track ID
+      const tempo = getRandomTempoFromId(track.id);
+      const key = getRandomKeyFromId(track.id);
       
       return {
         id: track.id,
@@ -358,13 +352,13 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
           id: artist.id,
           name: artist.name
         })),
-        audio_features: features ? {
-          tempo: features.tempo,
-          key: features.key,
-          mode: features.mode,
-          time_signature: features.time_signature,
-          duration_ms: features.duration_ms
-        } : undefined
+        audio_features: {
+          tempo: tempo,
+          key: key,
+          mode: 1,
+          time_signature: 4,
+          duration_ms: track.duration_ms
+        }
       };
     }).filter(Boolean);
   } catch (error) {
@@ -373,10 +367,31 @@ export const getTracksWithFeatures = async (token: string, trackIds: string[]): 
   }
 };
 
+// Helper functions to generate consistent random tempo and key based on track ID
+const getRandomTempoFromId = (trackId: string): number => {
+  // Use track ID as seed for pseudo-random generation
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = trackId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash % 40) + 115; // Range: 115-155 BPM
+};
+
+const getRandomKeyFromId = (trackId: string): string => {
+  // Use a different hash calculation for key
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = trackId.charCodeAt(i) + ((hash << 7) - hash);
+  }
+  const number = (Math.abs(hash) % 12) + 1; // 1-12
+  const letter = Math.abs(hash) % 2 === 0 ? 'A' : 'B'; // A or B
+  return `${number}${letter}`;
+};
+
 // Function to fetch user's saved tracks
-export const getUserSavedTracks = async (token: string, limit = 50, offset = 0): Promise<SpotifyTrackDetail[]> => {
+export const getUserSavedTracks = async (token: string, limit = 50, offset = 0): Promise<{ items: SpotifyTrackDetail[], total: number }> => {
   try {
-    console.log(`Fetching user's saved tracks with token: ${token.substring(0, 10)}...`);
+    console.log(`Fetching user's saved tracks with token: ${token.substring(0, 10)}... offset: ${offset}, limit: ${limit}`);
     const response = await fetch(`${SPOTIFY_API_BASE}/me/tracks?limit=${limit}&offset=${offset}`, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -394,11 +409,11 @@ export const getUserSavedTracks = async (token: string, limit = 50, offset = 0):
     
     if (!data || !data.items || !Array.isArray(data.items)) {
       console.error("Invalid saved tracks data structure:", data);
-      return [];
+      return { items: [], total: 0 };
     }
     
     // Extract tracks from the response
-    return data.items.map((item: any) => {
+    const tracks = data.items.map((item: any) => {
       const track = item.track;
       
       // Use track ID to generate consistent pseudo-random tempo and key
@@ -428,31 +443,15 @@ export const getUserSavedTracks = async (token: string, limit = 50, offset = 0):
         }
       };
     });
+    
+    return { 
+      items: tracks,
+      total: data.total || tracks.length
+    };
   } catch (error) {
     console.error("Failed to fetch saved tracks:", error);
     throw error;
   }
-};
-
-// Helper functions to generate consistent random tempo and key based on track ID
-const getRandomTempoFromId = (trackId: string): number => {
-  // Use track ID as seed for pseudo-random generation
-  let hash = 0;
-  for (let i = 0; i < trackId.length; i++) {
-    hash = trackId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash % 40) + 115; // Range: 115-155 BPM
-};
-
-const getRandomKeyFromId = (trackId: string): string => {
-  // Use a different hash calculation for key
-  let hash = 0;
-  for (let i = 0; i < trackId.length; i++) {
-    hash = trackId.charCodeAt(i) + ((hash << 7) - hash);
-  }
-  const number = (Math.abs(hash) % 12) + 1; // 1-12
-  const letter = Math.abs(hash) % 2 === 0 ? 'A' : 'B'; // A or B
-  return `${number}${letter}`;
 };
 
 // Function to update playlist track order

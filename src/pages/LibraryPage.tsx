@@ -4,23 +4,33 @@ import { useNavigate } from 'react-router-dom';
 import { searchSpotify, getUserSavedTracks, getUserPlaylists, addTracksToPlaylist } from '@/lib/spotify';
 import { SpotifyTrackDetail, SpotifyPlaylist } from '@/types';
 import TrackItem from '@/components/TrackItem';
-import { Search, X, RefreshCw, Plus } from 'lucide-react';
+import { X, RefreshCw, Plus } from 'lucide-react';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { toast } from '@/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
+const ITEMS_PER_PAGE = 50;
 
 const LibraryPage = () => {
   const navigate = useNavigate();
   const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SpotifyTrackDetail[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [showSearchModal, setShowSearchModal] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalTracks, setTotalTracks] = useState(0);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -29,21 +39,29 @@ const LibraryPage = () => {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  // Fetch user's saved tracks
+  // Fetch user's saved tracks with pagination
   const { 
     data: savedTracks, 
     isLoading: tracksLoading, 
     error: tracksError, 
     refetch: refetchTracks 
   } = useQuery({
-    queryKey: ['userSavedTracks', token],
+    queryKey: ['userSavedTracks', token, currentPage],
     queryFn: async () => {
-      if (!token) return [];
-      console.log("Fetching user's saved tracks with token:", token.substring(0, 10) + "...");
-      return getUserSavedTracks(token);
+      if (!token) return { items: [], total: 0 };
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      console.log(`Fetching user's saved tracks with token: ${token.substring(0, 10)}..., offset: ${offset}, limit: ${ITEMS_PER_PAGE}`);
+      const response = await getUserSavedTracks(token, ITEMS_PER_PAGE, offset);
+      return response;
     },
     enabled: !!token && isAuthenticated
   });
+
+  useEffect(() => {
+    if (savedTracks && savedTracks.total !== undefined) {
+      setTotalTracks(savedTracks.total);
+    }
+  }, [savedTracks]);
 
   // Fetch user's playlists for the add to playlist functionality
   const {
@@ -59,52 +77,7 @@ const LibraryPage = () => {
     enabled: !!token && isAuthenticated && showPlaylistDialog
   });
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!searchTerm.trim() || !token) return;
-    
-    try {
-      setIsSearching(true);
-      const results = await searchSpotify(token, searchTerm);
-      
-      if (results && results.tracks && results.tracks.items) {
-        // Convert to our SpotifyTrackDetail format
-        const trackDetails: SpotifyTrackDetail[] = results.tracks.items.map((track: any) => ({
-          id: track.id,
-          name: track.name,
-          duration_ms: track.duration_ms,
-          album: {
-            id: track.album.id,
-            name: track.album.name,
-            images: track.album.images,
-            release_date: track.album.release_date
-          },
-          artists: track.artists.map((artist: any) => ({
-            id: artist.id,
-            name: artist.name
-          }))
-        }));
-        
-        setSearchResults(trackDetails);
-      } else {
-        setSearchResults([]);
-      }
-    } catch (error) {
-      console.error('Error searching:', error);
-      toast({
-        title: 'Search Error',
-        description: 'Failed to search Spotify. Please try again later.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSearching(false);
-      setShowSearchModal(false);
-    }
-  };
-
   const clearSearch = () => {
-    setSearchTerm('');
     setSearchResults([]);
   };
 
@@ -141,6 +114,8 @@ const LibraryPage = () => {
     }
   };
 
+  const totalPages = Math.ceil(totalTracks / ITEMS_PER_PAGE);
+
   if (authLoading) {
     return (
       <div className="flex justify-center p-12">
@@ -153,56 +128,11 @@ const LibraryPage = () => {
     <div className="container px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">Your Library</h1>
-        
-        <div className="relative">
-          <button
-            onClick={() => setShowSearchModal(true)}
-            className="flex items-center rounded-md border px-4 py-2"
-          >
-            <Search className="mr-2 h-4 w-4" />
-            <span>Search</span>
-          </button>
-          
-          {showSearchModal && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center pt-32 bg-black bg-opacity-50">
-              <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">Search Spotify</h2>
-                  <button 
-                    onClick={() => setShowSearchModal(false)}
-                    className="rounded-full p-1 hover:bg-gray-100"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                
-                <form onSubmit={handleSearch}>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search for songs, artists, or albums"
-                      className="w-full rounded-md border p-3 pr-10"
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                    >
-                      <Search className="h-5 w-5" />
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
       
       {searchResults.length > 0 && (
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Search Results for "{searchTerm}"</h2>
+          <h2 className="text-xl font-semibold">Search Results</h2>
           <button 
             onClick={clearSearch}
             className="text-sm text-muted-foreground hover:text-foreground"
@@ -241,22 +171,71 @@ const LibraryPage = () => {
             <RefreshCw className="mr-2 h-4 w-4" /> Try Again
           </Button>
         </div>
-      ) : savedTracks && savedTracks.length > 0 ? (
+      ) : savedTracks && savedTracks.items && savedTracks.items.length > 0 ? (
         <div>
           <h2 className="mb-4 text-xl font-semibold">Your Saved Tracks</h2>
-          {savedTracks.map((track) => (
+          {savedTracks.items.map((track) => (
             <TrackItem 
               key={track.id} 
               track={track} 
               onAddToPlaylist={() => handleAddToPlaylist(track.id)}
             />
           ))}
+          
+          {totalPages > 1 && (
+            <div className="mt-6">
+              <Pagination>
+                <PaginationContent>
+                  {currentPage > 1 && (
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      />
+                    </PaginationItem>
+                  )}
+                  
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    // Show pages around current page
+                    let pageToShow;
+                    if (totalPages <= 5) {
+                      pageToShow = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageToShow = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageToShow = totalPages - 4 + i;
+                    } else {
+                      pageToShow = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <PaginationItem key={pageToShow}>
+                        <PaginationLink
+                          isActive={currentPage === pageToShow}
+                          onClick={() => setCurrentPage(pageToShow)}
+                        >
+                          {pageToShow}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  
+                  {currentPage < totalPages && (
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      />
+                    </PaginationItem>
+                  )}
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-md border p-8 text-center">
           <p className="mb-4 text-lg font-medium">No saved tracks found</p>
           <p className="text-muted-foreground">
-            Save tracks in Spotify or search for music using the search button above.
+            Save tracks in Spotify to see them here.
           </p>
         </div>
       )}
