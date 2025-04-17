@@ -203,9 +203,9 @@ const PlaylistDetailPage = () => {
       setShowSavedTracks(true);
       setSearchResults([]);
       console.log("Loading saved tracks for add dialog");
-      const tracks = await getUserSavedTracks(token);
-      console.log("Saved tracks loaded:", tracks.length);
-      setSavedTracks(tracks);
+      const tracksResponse = await getUserSavedTracks(token);
+      console.log("Saved tracks loaded:", tracksResponse.items.length);
+      setSavedTracks(tracksResponse.items);
     } catch (error) {
       console.error('Error loading saved tracks:', error);
       toast({
