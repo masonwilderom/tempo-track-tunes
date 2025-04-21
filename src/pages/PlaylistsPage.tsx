@@ -61,7 +61,14 @@ const PlaylistsPage = () => {
   );
 
   const handleCreatePlaylist = async () => {
-    if (!token || !user) return;
+    if (!token || !user) {
+      toast({
+        title: "Error",
+        description: "You need to be logged in to create a playlist",
+        variant: "destructive"
+      });
+      return;
+    }
     
     try {
       await createPlaylist(token, user.id, "New Playlist", "Created with playlistwiz");

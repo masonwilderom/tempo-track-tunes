@@ -2,14 +2,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
-import { refreshAccessToken } from '@/lib/spotify';
+import { refreshAccessToken, getUserProfile } from '@/lib/spotify';
 import { clearPkceValues } from '@/lib/pkce';
+import { SpotifyUser } from '@/types';
 
 export function useSpotifyAuth() {
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<SpotifyUser | null>(null);
   const navigate = useNavigate();
 
   // Function to refresh the token
@@ -97,6 +99,17 @@ export function useSpotifyAuth() {
               description: "Your Spotify session has expired. Please log in again.",
               variant: "destructive"
             });
+          } else {
+            // If token refreshed successfully, fetch user profile
+            const currentToken = localStorage.getItem('spotify_token');
+            if (currentToken) {
+              try {
+                const userProfile = await getUserProfile(currentToken);
+                setUser(userProfile);
+              } catch (error) {
+                console.error("Failed to fetch user profile after refresh:", error);
+              }
+            }
           }
         } else if (isExpired) {
           // Token is expired and we have no refresh token
@@ -112,6 +125,14 @@ export function useSpotifyAuth() {
           console.log("Using stored Spotify token (valid)");
           setToken(storedToken);
           setIsAuthenticated(true);
+          
+          // Fetch user profile
+          try {
+            const userProfile = await getUserProfile(storedToken);
+            setUser(userProfile);
+          } catch (error) {
+            console.error("Failed to fetch user profile:", error);
+          }
         }
       } else {
         // No token found
@@ -137,6 +158,7 @@ export function useSpotifyAuth() {
     isAuthenticated, 
     isLoading, 
     logout, 
-    refreshTokenIfNeeded 
+    refreshTokenIfNeeded,
+    user
   };
 }
