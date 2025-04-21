@@ -25,6 +25,8 @@ const queryClient = new QueryClient({
 
 // Log the current path on initial load to debug routing issues
 console.log("Initial route path:", window.location.pathname);
+console.log("Full URL:", window.location.href);
+console.log("Hostname:", window.location.hostname);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -44,6 +46,7 @@ const App = () => (
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/callback" element={<CallbackPage />} />
+              {/* Make sure the 404 route is last */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

@@ -18,6 +18,8 @@ const CallbackPage = () => {
         console.log("Current URL:", window.location.href);
         console.log("Path:", location.pathname);
         console.log("Search params:", location.search);
+        console.log("Host:", window.location.host);
+        console.log("Origin:", window.location.origin);
         
         // Get the authorization code and state from the URL
         const code = searchParams.get('code');
@@ -107,6 +109,9 @@ const CallbackPage = () => {
         <div className="mb-8 text-center">
           <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-spotify-green border-t-transparent"></div>
           <h2 className="text-xl font-medium">Processing authentication...</h2>
+          <p className="mt-2 text-muted-foreground">
+            URL: {window.location.href}
+          </p>
         </div>
       </div>
     );
@@ -118,6 +123,9 @@ const CallbackPage = () => {
         <div className="mb-8 text-center">
           <h2 className="mb-4 text-xl font-medium text-red-600">{error}</h2>
           <p>Please try to login again.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Debug info: {window.location.href}
+          </p>
           <button 
             onClick={() => window.location.href = "/login"}
             className="mt-4 rounded-md bg-spotify-green px-4 py-2 text-white hover:bg-opacity-90"

@@ -7,16 +7,20 @@ const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
 // Calculate the redirect URI based on the current environment
 const REDIRECT_URI = (() => {
   console.log("Current hostname:", window.location.hostname);
+  console.log("Full location:", window.location.href);
   
   // For specific Vercel deployment
   if (window.location.hostname === 'tempo-track-tunes.vercel.app') {
+    console.log("Using specific Vercel deployment redirect URI");
     return 'https://tempo-track-tunes.vercel.app/callback';
   }
   // For other Vercel deployments
   else if (window.location.hostname.includes('vercel.app')) {
+    console.log("Using generic Vercel deployment redirect URI");
     return `https://${window.location.hostname}/callback`;
   }
   // For all other deployments (including development)
+  console.log("Using development redirect URI");
   return `${window.location.origin}/callback`;
 })();
 
@@ -46,6 +50,8 @@ export const getSpotifyLoginUrl = async () => {
   
   // Log the redirect URI to help with debugging
   console.log("Using redirect URI:", REDIRECT_URI);
+  console.log("PKCE values stored, code verifier length:", codeVerifier.length);
+  console.log("State value:", state);
 
   // Create authorization URL with PKCE parameters
   const params = new URLSearchParams({
@@ -58,7 +64,9 @@ export const getSpotifyLoginUrl = async () => {
     scope: scopes.join(" ")
   });
   
-  return `${AUTH_ENDPOINT}?${params.toString()}`;
+  const authUrl = `${AUTH_ENDPOINT}?${params.toString()}`;
+  console.log("Generated auth URL:", authUrl.substring(0, 100) + "...");
+  return authUrl;
 };
 
 // Function to exchange authorization code for access token
@@ -68,6 +76,9 @@ export const getAccessToken = async (code: string, codeVerifier: string): Promis
   refresh_token: string;
 } | null> => {
   try {
+    console.log("Exchanging code for token with code verifier length:", codeVerifier.length);
+    console.log("Using redirect URI for token exchange:", REDIRECT_URI);
+    
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
       grant_type: 'authorization_code',
@@ -76,6 +87,8 @@ export const getAccessToken = async (code: string, codeVerifier: string): Promis
       code_verifier: codeVerifier
     });
 
+    console.log("Token request params prepared");
+    
     const response = await fetch(TOKEN_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -84,13 +97,17 @@ export const getAccessToken = async (code: string, codeVerifier: string): Promis
       body: params.toString()
     });
 
+    console.log("Token request sent, response status:", response.status);
+    
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Error exchanging code for token:', errorData);
       return null;
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log("Token response received successfully");
+    return data;
   } catch (error) {
     console.error('Error exchanging code for token:', error);
     return null;
