@@ -53,8 +53,8 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				"spotify-green": "#1DB954",
-				"light-green": "#C5F8BA",
+				"spotify-green": "#0b8b7f",
+				"light-green": "#b3f0e2",
 				"key-orange": "#F8A48A",
 				"key-yellow": "#F8D58A"
 			},

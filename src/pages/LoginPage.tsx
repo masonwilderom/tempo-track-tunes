@@ -21,7 +21,7 @@ const LoginPage = () => {
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center p-4">
       <div className="mb-8 flex items-center">
-        <div className="h-12 w-12 rounded bg-spotify-green"></div>
+        <img src="/logo.png" alt="Logo" className="h-8 w-8" />
         <h1 className="ml-3 text-3xl font-bold">playlistwiz</h1>
       </div>
 

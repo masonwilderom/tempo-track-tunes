@@ -53,7 +53,7 @@ const Navbar = () => {
       <div className="container flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center">
-            <div className="h-8 w-8 rounded bg-spotify-green"></div>
+          <img src="/logo.png" alt="Logo" className="h-8 w-8" />
             <span className="ml-2 text-xl font-bold">playlistwiz</span>
           </Link>
         </div>
