@@ -1,24 +1,17 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getUserSavedTracks, addTracksToPlaylist, getUserPlaylists } from '@/lib/spotify';
 import { SpotifyTrackDetail, SpotifyPlaylist } from '@/types';
 import TrackItem from '@/components/TrackItem';
-import { RefreshCw, Plus } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { toast } from '@/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { Pagination } from '@/components/ui/pagination';
 
 const ITEMS_PER_PAGE = 50;
 
@@ -30,21 +23,18 @@ const LibraryPage = () => {
   const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalTracks, setTotalTracks] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  // Check for search term from navigation
   useEffect(() => {
     const searchTerm = localStorage.getItem('spotify_search_term');
     if (searchTerm) {
-      // Clear the stored search term
       localStorage.removeItem('spotify_search_term');
-      // Here we would handle the search, but this is currently not implemented
       toast({
         title: 'Search',
         description: `Searching for "${searchTerm}" is not implemented yet.`,
@@ -52,7 +42,6 @@ const LibraryPage = () => {
     }
   }, [location]);
 
-  // Fetch user's saved tracks with pagination
   const { 
     data: savedTracks, 
     isLoading: tracksLoading, 
@@ -76,8 +65,7 @@ const LibraryPage = () => {
     }
   }, [savedTracks]);
 
-  // Fetch user's playlists for the add to playlist functionality
-  const {
+  const { 
     data: userPlaylists,
     isLoading: playlistsLoading,
   } = useQuery({
@@ -91,7 +79,6 @@ const LibraryPage = () => {
   });
 
   const handleRetry = async () => {
-    // Try to refresh the token first
     await refreshTokenIfNeeded();
     refetchTracks();
   };
@@ -133,10 +120,26 @@ const LibraryPage = () => {
     );
   }
 
+  const filteredTracks = savedTracks?.items.filter(track =>
+    track.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    track.artists.some(artist => artist.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div className="container px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 space-y-4">
         <h1 className="text-3xl font-bold">Your Library</h1>
+        
+        <div className="relative">
+          <Input
+            type="text"
+            placeholder="Search your tracks..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        </div>
       </div>
       
       {tracksLoading ? (
@@ -157,7 +160,7 @@ const LibraryPage = () => {
       ) : savedTracks && savedTracks.items && savedTracks.items.length > 0 ? (
         <div>
           <h2 className="mb-4 text-xl font-semibold">Your Saved Tracks</h2>
-          {savedTracks.items.map((track) => (
+          {filteredTracks.map((track) => (
             <TrackItem 
               key={track.id} 
               track={track} 
@@ -178,7 +181,6 @@ const LibraryPage = () => {
                   )}
                   
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    // Show pages around current page
                     let pageToShow;
                     if (totalPages <= 5) {
                       pageToShow = i + 1;

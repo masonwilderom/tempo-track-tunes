@@ -1,19 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SpotifyPlaylist } from '@/types';
-import { getUserPlaylists } from '@/lib/spotify';
+import { getUserPlaylists, createPlaylist } from '@/lib/spotify';
 import PlaylistCard from '@/components/PlaylistCard';
 import Notification from '@/components/ui/Notification';
 import { useSpotifyAuth } from '@/hooks/useSpotifyAuth';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from '@/components/ui/use-toast';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Plus, Search } from 'lucide-react';
 import { 
   DropdownMenu, 
   DropdownMenuTrigger, 
   DropdownMenuContent, 
   DropdownMenuItem 
 } from "@/components/ui/dropdown-menu";
-import { Button } from '@/components/ui/button';
 import { ArrowUpDown } from 'lucide-react';
 
 type SortOption = 'default' | 'name-asc' | 'name-desc' | 'tracks-asc' | 'tracks-desc';
@@ -23,12 +25,8 @@ const PlaylistsPage = () => {
   const { token, isAuthenticated, isLoading: authLoading, refreshTokenIfNeeded } = useSpotifyAuth();
   const [showNotification, setShowNotification] = useState(true);
   const [sortOption, setSortOption] = useState<SortOption>('default');
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, authLoading, navigate]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const { user } = useSpotifyAuth();
 
   const { data: playlists, isLoading, error, isError, refetch } = useQuery({
     queryKey: ['playlists', token],
@@ -57,6 +55,36 @@ const PlaylistsPage = () => {
     retry: 1,
     retryDelay: 2000
   });
+
+  const filteredPlaylists = playlists?.filter(playlist => 
+    playlist.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleCreatePlaylist = async () => {
+    if (!token || !user) return;
+    
+    try {
+      await createPlaylist(token, user.id, "New Playlist", "Created with playlistwiz");
+      refetch();
+      toast({
+        title: "Success",
+        description: "New playlist created successfully!",
+      });
+    } catch (error) {
+      console.error('Error creating playlist:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create playlist. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   useEffect(() => {
     if (isError && error) {
@@ -122,34 +150,53 @@ const PlaylistsPage = () => {
         />
       )}
 
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl font-bold">Your Playlists</h2>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <ArrowUpDown className="mr-2 h-4 w-4" />
-              Sort by
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setSortOption('default')}>
-              Default Order
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSortOption('name-asc')}>
-              Name (A-Z)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSortOption('name-desc')}>
-              Name (Z-A)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSortOption('tracks-asc')}>
-              Tracks (Fewest first)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setSortOption('tracks-desc')}>
-              Tracks (Most first)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold">Your Playlists</h2>
+          <Button onClick={handleCreatePlaylist} className="bg-spotify-green hover:bg-opacity-90">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Playlist
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative flex-1">
+            <Input
+              type="text"
+              placeholder="Search your playlists..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          </div>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <ArrowUpDown className="mr-2 h-4 w-4" />
+                Sort by
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSortOption('default')}>
+                Default Order
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOption('name-asc')}>
+                Name (A-Z)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOption('name-desc')}>
+                Name (Z-A)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOption('tracks-asc')}>
+                Tracks (Fewest first)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOption('tracks-desc')}>
+                Tracks (Most first)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       
       {isLoading ? (
@@ -166,16 +213,18 @@ const PlaylistsPage = () => {
             Try Again
           </button>
         </div>
-      ) : playlists && playlists.length > 0 ? (
+      ) : filteredPlaylists && filteredPlaylists.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {getSortedPlaylists().map((playlist) => (
+          {getSortedPlaylists().filter(playlist =>
+            playlist.name.toLowerCase().includes(searchTerm.toLowerCase())
+          ).map((playlist) => (
             <PlaylistCard key={playlist.id} playlist={playlist} />
           ))}
         </div>
       ) : (
         <div className="rounded-md border p-8 text-center">
           <p className="text-muted-foreground">
-            No playlists found. Create a playlist in Spotify to see it here.
+            {searchTerm ? "No playlists match your search." : "No playlists found. Create a playlist to see it here."}
           </p>
         </div>
       )}
