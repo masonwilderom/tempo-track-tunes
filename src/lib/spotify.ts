@@ -264,7 +264,7 @@ export const getPlaylist = async (token: string, playlistId: string): Promise<Sp
       id: playlist.id,
       name: playlist.name,
       description: playlist.description || "",
-      images: playlist.images.length > 0 ? playlist.images : [{ url: "/placeholder.svg" }],
+      images: playlist.images && (playlist.images.length > 0) ? playlist.images : [{ url: "/placeholder.svg" }],
       owner: {
         id: playlist.owner.id,
         display_name: playlist.owner.display_name || playlist.owner.id
