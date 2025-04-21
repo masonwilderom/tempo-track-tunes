@@ -1,11 +1,19 @@
-
 import { SpotifyPlaylist, SpotifyTrackDetail, SpotifyUser } from "@/types";
 import { generateCodeVerifier, generateRandomString, generateCodeChallenge, storePkceValues } from "./pkce";
 
 // Use the provided Spotify API client ID
 const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
-// For production, we use the current origin
-const REDIRECT_URI = window.location.origin + "/callback";
+
+// Calculate the redirect URI based on the current environment
+const REDIRECT_URI = (() => {
+  // For Vercel deployments, we need to ensure we use the proper domain
+  if (window.location.hostname.includes('vercel.app')) {
+    return `https://${window.location.hostname}/callback`;
+  }
+  // For all other deployments (including development)
+  return `${window.location.origin}/callback`;
+})();
+
 const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
 const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";

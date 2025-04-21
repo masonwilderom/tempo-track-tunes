@@ -13,6 +13,8 @@ const CallbackPage = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        console.log("Callback page loaded, processing authorization...");
+        
         // Get the authorization code and state from the URL
         const code = searchParams.get('code');
         const state = searchParams.get('state');
@@ -29,6 +31,12 @@ const CallbackPage = () => {
         // Get the stored PKCE values
         const { codeVerifier, state: storedState } = getPkceValues();
         
+        console.log("PKCE state check:", { 
+          receivedState: state, 
+          storedState, 
+          hasCodeVerifier: !!codeVerifier 
+        });
+        
         if (!codeVerifier) {
           throw new Error('Authentication failed. Code verifier not found.');
         }
@@ -38,11 +46,14 @@ const CallbackPage = () => {
         }
         
         // Exchange the code for an access token
+        console.log("Exchanging code for token...");
         const tokenData = await getAccessToken(code, codeVerifier);
         
         if (!tokenData) {
           throw new Error('Authentication failed. Could not exchange code for token.');
         }
+        
+        console.log("Token received successfully");
         
         // Store the token and expiration
         localStorage.setItem('spotify_token', tokenData.access_token);

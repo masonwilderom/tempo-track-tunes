@@ -8,7 +8,9 @@ const LoginPage = () => {
   const handleLoginClick = async () => {
     setIsLoading(true);
     try {
+      console.log("Generating Spotify login URL...");
       const loginUrl = await getSpotifyLoginUrl();
+      console.log("Redirecting to Spotify authorization:", loginUrl);
       window.location.href = loginUrl;
     } catch (error) {
       console.error("Error generating login URL:", error);
