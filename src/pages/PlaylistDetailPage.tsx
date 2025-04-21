@@ -71,7 +71,7 @@ const PlaylistDetailPage = () => {
 
   useEffect(() => {
     const fetchTracksWithFeatures = async () => {
-      if (!token || !playlist || !playlist.tracks.items.length) return;
+      if (!token || !playlist) return;
       
       try {
         setTracksError(null);
@@ -287,7 +287,7 @@ const PlaylistDetailPage = () => {
     );
   }
 
-  if (playlistError || !playlist) {
+  if (!playlist) {
     return (
       <div className="container px-4 py-8">
         <Alert variant="destructive" className="mb-4">

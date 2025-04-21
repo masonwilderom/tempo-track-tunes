@@ -22,7 +22,7 @@ const Notification = ({ message, link, onClose }: NotificationProps) => {
   if (!isVisible) return null;
 
   return (
-    <div className="w-full bg-light-green py-3 px-4 flex items-center justify-center relative">
+    <div className="w-full bg-light-green py-2 px-4 flex items-center justify-center relative">
       <p className="text-sm">
         {message}
         {link && (

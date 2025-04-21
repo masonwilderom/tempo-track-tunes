@@ -134,19 +134,8 @@ const LibraryPage = () => {
 
   return (
     <div className="container px-4 py-8">
-      <div className="mb-6 space-y-4">
-        <h1 className="text-3xl font-bold">Your Library</h1>
-        
-        <div className="relative">
-          <Input
-            type="text"
-            placeholder="Search your tracks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        </div>
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold">Your Library</h2>
       </div>
       
       {tracksLoading ? (
