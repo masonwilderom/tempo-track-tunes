@@ -23,6 +23,9 @@ const queryClient = new QueryClient({
   },
 });
 
+// Log the current path on initial load to debug routing issues
+console.log("Initial route path:", window.location.pathname);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>

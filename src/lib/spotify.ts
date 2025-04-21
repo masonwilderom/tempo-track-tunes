@@ -6,8 +6,14 @@ const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
 
 // Calculate the redirect URI based on the current environment
 const REDIRECT_URI = (() => {
-  // For Vercel deployments, we need to ensure we use the proper domain
-  if (window.location.hostname.includes('vercel.app')) {
+  console.log("Current hostname:", window.location.hostname);
+  
+  // For specific Vercel deployment
+  if (window.location.hostname === 'tempo-track-tunes.vercel.app') {
+    return 'https://tempo-track-tunes.vercel.app/callback';
+  }
+  // For other Vercel deployments
+  else if (window.location.hostname.includes('vercel.app')) {
     return `https://${window.location.hostname}/callback`;
   }
   // For all other deployments (including development)

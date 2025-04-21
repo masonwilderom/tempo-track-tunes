@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams, useLocation } from 'react-router-dom';
 import { getAccessToken } from '@/lib/spotify';
 import { getPkceValues, clearPkceValues } from '@/lib/pkce';
 import { toast } from '@/components/ui/use-toast';
 
 const CallbackPage = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,11 +15,18 @@ const CallbackPage = () => {
     const handleCallback = async () => {
       try {
         console.log("Callback page loaded, processing authorization...");
+        console.log("Current URL:", window.location.href);
+        console.log("Path:", location.pathname);
+        console.log("Search params:", location.search);
         
         // Get the authorization code and state from the URL
         const code = searchParams.get('code');
         const state = searchParams.get('state');
         const error = searchParams.get('error');
+        
+        console.log("Code received:", code ? "Yes (truncated for security)" : "No");
+        console.log("State received:", state ? "Yes" : "No");
+        console.log("Error received:", error || "None");
         
         if (error) {
           throw new Error(`Authentication failed: ${error}`);
@@ -91,7 +99,7 @@ const CallbackPage = () => {
     };
 
     handleCallback();
-  }, [searchParams]);
+  }, [searchParams, location]);
 
   if (isProcessing) {
     return (
