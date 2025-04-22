@@ -13,12 +13,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useTheme } from '@/hooks/use-theme';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { token, isAuthenticated, logout } = useSpotifyAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<SpotifyUser | null>(null);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -81,6 +83,9 @@ const Navbar = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Link to="/library" className="w-full">My Library</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
+                  {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={logout}>
                   Logout
