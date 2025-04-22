@@ -1,93 +1,64 @@
+import { db } from "./firebaseConfig";
+import {
+  doc, setDoc, getDoc,
+  addDoc, getDocs, collection, query, where
+} from "firebase/firestore";
+import { TrackNote, TrackCue } from "@/types";
 
-// This is a mock Firebase service for demonstration
-// In a real app, you would initialize and use Firebase
-
-import { PlaylistNote, TrackCue, TrackNote } from "@/types";
-
-// Mock data storage
-const trackNotes: TrackNote[] = [];
-const playlistNotes: PlaylistNote[] = [];
-const trackCues: TrackCue[] = [];
-
-export const saveTrackNote = async (trackId: string, userId: string, note: string): Promise<TrackNote> => {
+// Save track note
+export const saveTrackNote = async (
+  trackId: string,
+  playlistId: string,
+  note: string
+): Promise<void> => {
   const now = new Date().toISOString();
-  const existingNoteIndex = trackNotes.findIndex(n => n.trackId === trackId && n.userId === userId);
-  
-  const trackNote = {
-    trackId,
-    userId,
+  const docRef = doc(db, `playlists/${playlistId}/tracks/${trackId}`);
+  await setDoc(docRef, {
     note,
     createdAt: now,
     updatedAt: now
-  };
-  
-  if (existingNoteIndex >= 0) {
-    // Update existing note
-    trackNotes[existingNoteIndex] = {
-      ...trackNotes[existingNoteIndex],
-      note,
-      updatedAt: now
-    };
-    return trackNotes[existingNoteIndex];
-  } else {
-    // Add new note
-    trackNotes.push(trackNote);
-    return trackNote;
-  }
+  }, { merge: true });
 };
 
-export const getTrackNote = async (trackId: string, userId: string): Promise<TrackNote | null> => {
-  const note = trackNotes.find(n => n.trackId === trackId && n.userId === userId);
-  return note || null;
+
+// Get track notes
+export const getTrackNote = async (
+  trackId: string,
+  playlistId: string
+): Promise<string | null> => {
+  const docRef = doc(db, `playlists/${playlistId}/tracks/${trackId}`);
+  const snap = await getDoc(docRef);
+  return snap.exists() ? (snap.data()?.note || '') : null;
 };
 
-export const savePlaylistNote = async (playlistId: string, userId: string, note: string): Promise<PlaylistNote> => {
+// Save cue point
+export const saveTrackCue = async (
+  trackId: string,
+  userId: string,
+  cue: Omit<TrackCue, "createdAt" | "updatedAt">
+): Promise<TrackCue> => {
   const now = new Date().toISOString();
-  const existingNoteIndex = playlistNotes.findIndex(n => n.playlistId === playlistId && n.userId === userId);
-  
-  const playlistNote = {
-    playlistId,
-    userId,
-    note,
-    createdAt: now,
-    updatedAt: now
-  };
-  
-  if (existingNoteIndex >= 0) {
-    // Update existing note
-    playlistNotes[existingNoteIndex] = {
-      ...playlistNotes[existingNoteIndex],
-      note,
-      updatedAt: now
-    };
-    return playlistNotes[existingNoteIndex];
-  } else {
-    // Add new note
-    playlistNotes.push(playlistNote);
-    return playlistNote;
-  }
-};
-
-export const getPlaylistNote = async (playlistId: string, userId: string): Promise<PlaylistNote | null> => {
-  const note = playlistNotes.find(n => n.playlistId === playlistId && n.userId === userId);
-  return note || null;
-};
-
-export const saveTrackCue = async (trackId: string, userId: string, name: string, timeMs: number): Promise<TrackCue> => {
-  const now = new Date().toISOString();
-  const trackCue = {
+  const data: TrackCue = {
+    ...cue,
     trackId,
     userId,
-    name,
-    timeMs,
     createdAt: now,
     updatedAt: now
   };
-  
-  trackCues.push(trackCue);
-  return trackCue;
+  await addDoc(collection(db, "track-cues"), data);
+  return data;
 };
 
-export const getTrackCues = async (trackId: string, userId: string): Promise<TrackCue[]> => {
-  return trackCues.filter(c => c.trackId === trackId && c.userId === userId);
+// Get cue points
+export const getTrackCues = async (
+  trackId: string,
+  userId: string
+): Promise<TrackCue[]> => {
+  const q = query(
+    collection(db, "track-cues"),
+    where("trackId", "==", trackId),
+    where("userId", "==", userId)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => doc.data() as TrackCue);
 };

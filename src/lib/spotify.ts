@@ -1,8 +1,10 @@
 import { SpotifyPlaylist, SpotifyTrackDetail, SpotifyUser } from "@/types";
 import { generateCodeVerifier, generateRandomString, generateCodeChallenge, storePkceValues } from "./pkce";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 
 // Use the provided Spotify API client ID
-const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
+const CLIENT_ID = "e9f9ba2cd316413dbe759c2009f1d7f7";
 
 // Calculate the redirect URI based on the current environment
 const REDIRECT_URI = (() => {
@@ -555,30 +557,36 @@ export const removeTrackFromPlaylist = async (token: string, playlistId: string,
 };
 
 // Function to create a new playlist
-export const createPlaylist = async (token: string, userId: string, name: string, description: string = "") => {
-  try {
-    const response = await fetch(`${SPOTIFY_API_BASE}/users/${userId}/playlists`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        description,
-        public: false
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error creating playlist: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to create playlist:`, error);
-    throw error;
+export const createPlaylist = async (token: string, userId: string, name: string, description = "") => {
+  const response = await fetch(`${SPOTIFY_API_BASE}/users/${userId}/playlists`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name,
+      description,
+      public: false
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error creating playlist: ${response.status}`);
   }
+
+  const spotifyPlaylist = await response.json();
+
+  const docRef = doc(db, "playlists", name); // Use readable name as ID
+  await setDoc(docRef, {
+    spotifyId: spotifyPlaylist.id,
+    name: name,
+    ownerId: userId,
+    createdAt: new Date().toISOString(),
+    tracks: []
+  });
+
+  return spotifyPlaylist;
 };
 
 // Function to add tracks to a playlist
