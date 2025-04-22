@@ -34,7 +34,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <div className="flex min-h-screen flex-col">
+        <div className="flex min-h-screen flex-col bg-background text-foreground transition-colors">
           <Navbar />
           <Navigation />
           

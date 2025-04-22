@@ -148,7 +148,11 @@ const TrackItem = ({ track, index, playlistId, onReorder, onRemove, onAddToPlayl
           </div>
 
           <div className="mx-8 flex-1">
-            <TrackCuePoints trackId={track.id} duration={track.duration_ms} />
+            <TrackCuePoints
+              trackId={track.id}
+              playlistId={playlistId ?? "demoPlaylist"} // fallback if undefined
+              duration={track.duration_ms}
+            />
           </div>
 
           <div className="flex flex-col items-end justify-center">

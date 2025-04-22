@@ -20,6 +20,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const ITEMS_PER_PAGE = 50;
 
@@ -48,6 +50,24 @@ const PlaylistDetailPage = () => {
       navigate('/login');
     }
   }, [isAuthenticated, authLoading, navigate]);
+
+  useEffect(() => {
+    const fetchNote = async () => {
+      if (!id) return;
+      try {
+        const playlistRef = doc(db, 'playlists', id);
+        const snap = await getDoc(playlistRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data?.notes) setComment(data.notes);
+        }
+      } catch (error) {
+        console.error('Error loading playlist note:', error);
+      }
+    };
+  
+    fetchNote();
+  }, [id]);
 
   const { data: playlist, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
     queryKey: ['playlist', token, id],
@@ -574,6 +594,18 @@ const PlaylistDetailPage = () => {
                 type="text"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    try {
+                      const playlistRef = doc(db, 'playlists', id!);
+                      await setDoc(playlistRef, { notes: comment }, { merge: true });
+                      console.log('Note saved!');
+                    } catch (error) {
+                      console.error('Error saving note:', error);
+                    }
+                  }
+                }}
                 placeholder="Add a comment"
                 className="w-full rounded-md border px-3 py-2"
               />
