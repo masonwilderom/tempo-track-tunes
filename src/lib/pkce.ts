@@ -19,12 +19,15 @@ export function generateCodeVerifier(): string {
 
 // Generate a code challenge from the code verifier
 export async function generateCodeChallenge(codeVerifier: string): Promise<string> {
-  // Hash the code verifier using SHA-256
   const encoder = new TextEncoder();
   const data = encoder.encode(codeVerifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  
-  // Convert the hash to base64-url format
+
+  const subtle = window?.crypto?.subtle;
+  if (!subtle || typeof subtle.digest !== 'function') {
+    throw new Error('Web Crypto API is not available. Must run in a secure browser context (HTTPS).');
+  }
+
+  const digest = await subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')

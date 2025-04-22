@@ -5,6 +5,7 @@ import { PlusCircle, X } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
 import { Button } from './ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { saveTrackCue } from '@/lib/firebase';
 
 interface TrackCuePointsProps {
   trackId: string;
@@ -34,18 +35,17 @@ const TrackCuePoints: React.FC<TrackCuePointsProps> = ({ trackId, duration }) =>
     return true;
   };
 
-  const handleAddCue = () => {
+  const handleAddCue = async () => {
     if (!newCueName) {
       setError("Please enter a cue name");
       return;
     }
-    
+  
     if (!newCueTime) {
       setError("Please enter a cue time");
       return;
     }
-    
-    // Validate time format
+  
     if (!validateTimeFormat(newCueTime)) {
       setError("Time must be in MM:SS format");
       toast({
@@ -55,58 +55,48 @@ const TrackCuePoints: React.FC<TrackCuePointsProps> = ({ trackId, duration }) =>
       });
       return;
     }
-    
-    // Parse time from MM:SS format to milliseconds
+  
     const [minutes, seconds] = newCueTime.split(':').map(Number);
-    
-    // Make sure the numbers are valid
     if (isNaN(minutes) || isNaN(seconds)) {
       setError("Invalid time values");
-      toast({
-        variant: "destructive",
-        title: "Invalid Time Format",
-        description: "Time must contain valid numbers in MM:SS format",
-      });
       return;
     }
-    
+  
     const timeMs = (minutes * 60 + seconds) * 1000;
-    
-    // Don't add if time is beyond the track duration
+  
     if (timeMs > duration) {
       setError(`Time cannot exceed track duration (${formatDuration(duration)})`);
-      toast({
-        variant: "destructive",
-        title: "Invalid Time",
-        description: `Time cannot exceed track duration (${formatDuration(duration)})`,
-      });
       return;
     }
-    
-    // Don't add more than 4 cue points
+  
     if (cuePoints.length >= 4) {
       setError("Maximum 4 cue points allowed");
-      toast({
-        variant: "destructive",
-        title: "Maximum Reached",
-        description: "Maximum 4 cue points are allowed per track",
-      });
       return;
     }
-    
-    // Clear previous error
+  
     setError(null);
-    
+  
     const newCue: CuePoint = {
       id: Date.now().toString(),
       name: newCueName,
       timeMs,
       color: cueColors[cuePoints.length % cueColors.length]
     };
-    
+  
     setCuePoints([...cuePoints, newCue]);
     setNewCueName('');
     setNewCueTime('');
+  
+    try {
+      await saveTrackCue(trackId, "demoPlaylist", {
+        name: newCue.name,
+        timeMs: newCue.timeMs
+      });
+      toast({ title: "Cue point saved!" });
+    } catch (err) {
+      console.error("Failed to save cue:", err);
+      toast({ title: "Failed to save cue", variant: "destructive" });
+    }
   };
   
   const handleRemoveCue = (id: string) => {
