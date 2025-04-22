@@ -68,3 +68,4 @@ export const getTrackCues = async (
   } as TrackCue));
 };
 
+export { db };
