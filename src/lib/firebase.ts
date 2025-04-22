@@ -34,31 +34,37 @@ export const getTrackNote = async (
 // Save cue point
 export const saveTrackCue = async (
   trackId: string,
-  userId: string,
-  cue: Omit<TrackCue, "createdAt" | "updatedAt">
+  playlistId: string,
+  cue: Omit<TrackCue, "createdAt" | "updatedAt" | "id">
 ): Promise<TrackCue> => {
   const now = new Date().toISOString();
   const data: TrackCue = {
     ...cue,
     trackId,
-    userId,
+    playlistId,
     createdAt: now,
     updatedAt: now
   };
-  await addDoc(collection(db, "track-cues"), data);
-  return data;
+  
+  const cuesRef = collection(db, `playlists/${playlistId}/tracks/${trackId}/cues`);
+  const docRef = await addDoc(cuesRef, data);
+
+  return {
+    ...data,
+    id: docRef.id
+  };
 };
 
 // Get cue points
 export const getTrackCues = async (
   trackId: string,
-  userId: string
+  playlistId: string
 ): Promise<TrackCue[]> => {
-  const q = query(
-    collection(db, "track-cues"),
-    where("trackId", "==", trackId),
-    where("userId", "==", userId)
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data() as TrackCue);
+  const cuesRef = collection(db, `playlists/${playlistId}/tracks/${trackId}/cues`);
+  const snapshot = await getDocs(cuesRef);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as TrackCue));
 };
+
