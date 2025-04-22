@@ -4,7 +4,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
 // Use the provided Spotify API client ID
-const CLIENT_ID = "e9f9ba2cd316413dbe759c2009f1d7f7";
+const CLIENT_ID = "096cce6ff8114c189ed1f8e1b8bf30b7";
 
 // Calculate the redirect URI based on the current environment
 const REDIRECT_URI = (() => {
